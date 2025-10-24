@@ -1,4 +1,4 @@
-import { useAuth } from "@/_core/hooks/useAuth";
+
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -50,23 +50,11 @@ export default function DashboardLayout({
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
-  const { loading, user } = useAuth();
-
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
 
-  if (loading) {
-    return <DashboardLayoutSkeleton />
-  }
 
-  if (!user) {
-    // Redirect to home page for login
-    if (typeof window !== "undefined" && window.location.pathname !== "/") {
-      window.location.href = "/";
-    }
-    return null;
-  }
 
   return (
     <SidebarProvider
@@ -92,7 +80,8 @@ function DashboardLayoutContent({
   children,
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
-  const { user, logout } = useAuth();
+  const user = { name: 'Administrator', role: 'admin', email: 'admin@neuralarc.ai' };
+  const logout = () => {};
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
