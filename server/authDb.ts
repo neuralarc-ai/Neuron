@@ -12,11 +12,12 @@ export async function createAuthUser(data: Omit<InsertAuthUser, "password"> & { 
   const [user] = await db.insert(authUsers).values({
     ...data,
     password: hashedPassword,
-  }).returning();
+  }).$returningId();
 
-  if (!user) throw new Error("Failed to create user");
+  const created = await getAuthUserById(user.id);
+  if (!created) throw new Error("Failed to create user");
   
-  return user;
+  return created;
 }
 
 export async function getAuthUserById(id: number): Promise<AuthUser | null> {
