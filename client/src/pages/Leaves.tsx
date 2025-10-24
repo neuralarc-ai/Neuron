@@ -1,52 +1,35 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Calendar as CalendarIcon, AlertCircle } from "lucide-react";
+import { Calendar, AlertTriangle, CheckCircle2, Save } from "lucide-react";
 import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Leaves() {
-  const [open, setOpen] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
-  const [leavesTaken, setLeavesTaken] = useState("");
+  const [leaveInputs, setLeaveInputs] = useState<Record<number, string>>({});
+  const [saving, setSaving] = useState<Record<number, boolean>>({});
 
   const utils = trpc.useUtils();
-  const { data: employees } = trpc.employees.active.useQuery();
+  const { data: employees, isLoading: loadingEmployees } = trpc.employees.active.useQuery();
   const { data: settings } = trpc.settings.get.useQuery();
 
-  const createMutation = trpc.leaves.createOrUpdate.useMutation({
-    onSuccess: () => {
-      utils.leaves.getByEmployee.invalidate();
-      toast.success("Leave record updated successfully");
-      setOpen(false);
-      resetForm();
+  const createOrUpdateMutation = trpc.leaves.createOrUpdate.useMutation({
+    onSuccess: (_, variables) => {
+      setSaving(prev => ({ ...prev, [variables.employeeId]: false }));
+      toast.success("Leave record saved");
+      utils.leaves.getByEmployee.invalidate({ employeeId: variables.employeeId });
     },
-    onError: () => toast.error("Failed to update leave record"),
+    onError: (_, variables) => {
+      setSaving(prev => ({ ...prev, [variables.employeeId]: false }));
+      toast.error("Failed to save leave record");
+    },
   });
-
-  const resetForm = () => {
-    setSelectedEmployee("");
-    setSelectedMonth("");
-    setSelectedYear("");
-    setLeavesTaken("");
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    createMutation.mutate({
-      employeeId: parseInt(selectedEmployee),
-      month: parseInt(selectedMonth),
-      year: parseInt(selectedYear),
-      leavesTaken: parseInt(leavesTaken),
-    });
-  };
 
   const months = [
     { value: "1", label: "January" },
@@ -66,248 +49,234 @@ export default function Leaves() {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
-  const [viewEmployee, setViewEmployee] = useState<number | null>(null);
-  const { data: employeeLeaves } = trpc.leaves.getByEmployee.useQuery(
-    { employeeId: viewEmployee! },
-    { enabled: !!viewEmployee }
-  );
+  // Set default to current month/year
+  useEffect(() => {
+    const now = new Date();
+    if (!selectedMonth) setSelectedMonth((now.getMonth() + 1).toString());
+    if (!selectedYear) setSelectedYear(now.getFullYear().toString());
+  }, [selectedMonth, selectedYear]);
 
-  const calculateDeduction = (salary: number, leavesTaken: number) => {
-    if (!settings) return 0;
-    const excessLeaves = Math.max(0, leavesTaken - settings.leaveQuotaPerMonth);
-    return Math.floor((salary / settings.workingDaysPerMonth) * excessLeaves);
+  const handleLeaveChange = (employeeId: number, value: string) => {
+    setLeaveInputs(prev => ({ ...prev, [employeeId]: value }));
+  };
+
+  const handleSave = (employeeId: number) => {
+    if (!selectedMonth || !selectedYear) {
+      toast.error("Please select month and year");
+      return;
+    }
+
+    const leaveValue = leaveInputs[employeeId];
+    if (leaveValue === undefined || leaveValue === "") {
+      toast.error("Please enter number of leaves");
+      return;
+    }
+
+    const leavesTaken = parseInt(leaveValue);
+    if (isNaN(leavesTaken) || leavesTaken < 0) {
+      toast.error("Please enter a valid number");
+      return;
+    }
+
+    setSaving(prev => ({ ...prev, [employeeId]: true }));
+    createOrUpdateMutation.mutate({
+      employeeId,
+      month: parseInt(selectedMonth),
+      year: parseInt(selectedYear),
+      leavesTaken,
+    });
+  };
+
+  const getExcessLeaves = (employeeId: number): number => {
+    const leaveValue = leaveInputs[employeeId];
+    if (!leaveValue || !settings) return 0;
+    
+    const leavesTaken = parseInt(leaveValue);
+    if (isNaN(leavesTaken)) return 0;
+    
+    return Math.max(0, leavesTaken - settings.leaveQuotaPerMonth);
+  };
+
+  const isExceeding = (employeeId: number): boolean => {
+    return getExcessLeaves(employeeId) > 0;
   };
 
   return (
     <DashboardLayout>
       <div className="container py-8 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Leave Management</h1>
-            <p className="text-muted-foreground mt-1">Track employee leaves and quotas</p>
-          </div>
-          <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Leave Record
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Leave Record</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="employee">Employee *</Label>
-                  <Select value={selectedEmployee} onValueChange={setSelectedEmployee} required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select employee" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employees?.map((emp) => (
-                        <SelectItem key={emp.id} value={emp.id.toString()}>
-                          {emp.name} - {emp.designation}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="month">Month *</Label>
-                    <Select value={selectedMonth} onValueChange={setSelectedMonth} required>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select month" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {months.map((month) => (
-                          <SelectItem key={month.value} value={month.value}>
-                            {month.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="year">Year *</Label>
-                    <Select value={selectedYear} onValueChange={setSelectedYear} required>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select year" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {years.map((year) => (
-                          <SelectItem key={year} value={year.toString()}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="leavesTaken">Leaves Taken *</Label>
-                  <Input
-                    id="leavesTaken"
-                    type="number"
-                    min="0"
-                    value={leavesTaken}
-                    onChange={(e) => setLeavesTaken(e.target.value)}
-                    required
-                  />
-                  {settings && (
-                    <p className="text-xs text-muted-foreground">
-                      Monthly quota: {settings.leaveQuotaPerMonth} leaves
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={createMutation.isPending}>
-                    Save
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+        <div>
+          <h1 className="text-3xl font-bold">Leave Management</h1>
+          <p className="text-muted-foreground mt-1">
+            Record monthly leaves for all employees
+          </p>
         </div>
 
-        {/* Settings Info */}
-        {settings && (
-          <div className="bento-card bg-[rgb(var(--lavander))]/10 border-[rgb(var(--lavander))]/20">
-            <div className="flex items-start gap-3">
-              <CalendarIcon className="h-5 w-5 text-[rgb(var(--lavander))] mt-0.5" />
-              <div>
-                <h3 className="font-semibold mb-1">Leave Policy</h3>
-                <p className="text-sm text-muted-foreground">
-                  Monthly quota: <span className="font-medium text-foreground">{settings.leaveQuotaPerMonth} leaves</span> | 
-                  Working days: <span className="font-medium text-foreground">{settings.workingDaysPerMonth} days</span>
-                </p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Leaves exceeding the quota will result in pro-rata salary deduction
-                </p>
+        {/* Period Selection */}
+        <div className="bento-card bg-gradient-to-br from-[rgb(var(--lavander))]/10 to-[rgb(var(--sky))]/10 border-[rgb(var(--lavander))]/20">
+          <div className="flex items-center gap-2 mb-4">
+            <Calendar className="h-5 w-5 text-[rgb(var(--lavander))]" />
+            <h2 className="text-lg font-semibold">Select Period</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="month">Month</Label>
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select month" />
+                </SelectTrigger>
+                <SelectContent>
+                  {months.map((month) => (
+                    <SelectItem key={month.value} value={month.value}>
+                      {month.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="year">Year</Label>
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((year) => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Leave Quota</Label>
+              <div className="h-10 px-3 py-2 rounded-md border border-input bg-muted/50 flex items-center">
+                <span className="text-sm font-medium">
+                  {settings?.leaveQuotaPerMonth || 0} days/month
+                </span>
               </div>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Employees Grid */}
-        <div className="bento-grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {employees?.map((employee) => {
-            const currentMonth = new Date().getMonth() + 1;
-            const currentYear = new Date().getFullYear();
-            
-            return (
-              <div key={employee.id} className="bento-card">
-                <div className="space-y-4">
-                  <div>
+        {/* Employee List */}
+        {loadingEmployees ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bento-card animate-pulse">
+                <div className="h-16 bg-muted rounded" />
+              </div>
+            ))}
+          </div>
+        ) : employees && employees.length > 0 ? (
+          <div className="space-y-3">
+            {employees.map((employee) => (
+              <div 
+                key={employee.id} 
+                className={`bento-card transition-all ${
+                  isExceeding(employee.id) 
+                    ? 'border-[rgb(var(--tangerine))]/50 bg-[rgb(var(--tangerine))]/5' 
+                    : 'hover:shadow-md'
+                }`}
+              >
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  {/* Employee Info */}
+                  <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-lg">{employee.name}</h3>
                     <p className="text-sm text-muted-foreground">{employee.designation}</p>
                   </div>
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Monthly Quota</span>
-                      <span className="font-medium">{settings?.leaveQuotaPerMonth || 0} leaves</span>
+                  {/* Leave Input */}
+                  <div className="flex items-center gap-3 md:w-auto">
+                    <div className="space-y-1">
+                      <Label htmlFor={`leave-${employee.id}`} className="text-xs text-muted-foreground">
+                        Leaves Taken
+                      </Label>
+                      <Input
+                        id={`leave-${employee.id}`}
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={leaveInputs[employee.id] || ""}
+                        onChange={(e) => handleLeaveChange(employee.id, e.target.value)}
+                        className="w-24 text-center"
+                      />
                     </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Salary</span>
-                      <span className="font-medium">
-                        {new Intl.NumberFormat('en-IN', {
-                          style: 'currency',
-                          currency: 'INR',
-                          maximumFractionDigits: 0,
-                        }).format(employee.salary)}
-                      </span>
-                    </div>
+
+                    <Button
+                      onClick={() => handleSave(employee.id)}
+                      disabled={saving[employee.id]}
+                      size="sm"
+                      className="mt-5 bg-[rgb(var(--tea))] hover:bg-[rgb(var(--tea))]/90 text-white"
+                    >
+                      {saving[employee.id] ? (
+                        "Saving..."
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-1" />
+                          Save
+                        </>
+                      )}
+                    </Button>
                   </div>
 
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => setViewEmployee(employee.id)}
-                  >
-                    View Leave History
-                  </Button>
+                  {/* Warning/Success Indicator */}
+                  <div className="md:w-64">
+                    {leaveInputs[employee.id] !== undefined && leaveInputs[employee.id] !== "" && (
+                      <>
+                        {isExceeding(employee.id) ? (
+                          <Alert className="border-[rgb(var(--tangerine))] bg-[rgb(var(--tangerine))]/10 py-2">
+                            <AlertTriangle className="h-4 w-4 text-[rgb(var(--tangerine))]" />
+                            <AlertDescription className="text-xs">
+                              <span className="font-semibold">Exceeds quota by {getExcessLeaves(employee.id)} day(s)</span>
+                              <br />
+                              <span className="text-muted-foreground">
+                                Salary deduction will apply
+                              </span>
+                            </AlertDescription>
+                          </Alert>
+                        ) : (
+                          <Alert className="border-[rgb(var(--tea))] bg-[rgb(var(--tea))]/10 py-2">
+                            <CheckCircle2 className="h-4 w-4 text-[rgb(var(--tea))]" />
+                            <AlertDescription className="text-xs">
+                              <span className="font-semibold">Within quota</span>
+                              <br />
+                              <span className="text-muted-foreground">
+                                No deduction
+                              </span>
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bento-card text-center py-12">
+            <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">
+              No active employees found. Add employees first to record their leaves.
+            </p>
+          </div>
+        )}
 
-        {/* Leave History Dialog */}
-        <Dialog open={!!viewEmployee} onOpenChange={(val) => !val && setViewEmployee(null)}>
-          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto custom-scrollbar">
-            <DialogHeader>
-              <DialogTitle>Leave History</DialogTitle>
-            </DialogHeader>
-            {viewEmployee && employeeLeaves && (
-              <div className="space-y-4">
-                {employeeLeaves.length > 0 ? (
-                  <div className="space-y-3">
-                    {employeeLeaves.map((leave) => {
-                      const employee = employees?.find(e => e.id === leave.employeeId);
-                      const excessLeaves = Math.max(0, leave.leavesTaken - (settings?.leaveQuotaPerMonth || 0));
-                      const deduction = employee && settings ? calculateDeduction(employee.salary, leave.leavesTaken) : 0;
-                      
-                      return (
-                        <div key={leave.id} className="bento-card">
-                          <div className="flex items-start justify-between">
-                            <div className="space-y-2 flex-1">
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-semibold">
-                                  {months.find(m => m.value === leave.month.toString())?.label} {leave.year}
-                                </h4>
-                                {excessLeaves > 0 && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-[rgb(var(--tangerine))]/10 text-[rgb(var(--tangerine))]">
-                                    <AlertCircle className="h-3 w-3" />
-                                    Excess leaves
-                                  </span>
-                                )}
-                              </div>
-                              <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                  <span className="text-muted-foreground">Leaves Taken:</span>
-                                  <span className="ml-2 font-medium">{leave.leavesTaken}</span>
-                                </div>
-                                {excessLeaves > 0 && (
-                                  <>
-                                    <div>
-                                      <span className="text-muted-foreground">Excess:</span>
-                                      <span className="ml-2 font-medium text-[rgb(var(--tangerine))]">{excessLeaves}</span>
-                                    </div>
-                                    <div className="col-span-2">
-                                      <span className="text-muted-foreground">Deduction:</span>
-                                      <span className="ml-2 font-medium text-[rgb(var(--red-passion))]">
-                                        {new Intl.NumberFormat('en-IN', {
-                                          style: 'currency',
-                                          currency: 'INR',
-                                          maximumFractionDigits: 0,
-                                        }).format(deduction)}
-                                      </span>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-center text-muted-foreground py-8">No leave records found</p>
-                )}
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        {/* Info Card */}
+        {employees && employees.length > 0 && (
+          <div className="bento-card bg-[rgb(var(--sky))]/10 border-[rgb(var(--sky))]/20">
+            <h3 className="font-semibold mb-2">How it works</h3>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              <li>• Enter the number of leaves taken by each employee for the selected month</li>
+              <li>• Leaves exceeding the monthly quota ({settings?.leaveQuotaPerMonth || 0} days) will trigger salary deductions</li>
+              <li>• Save each employee's record individually</li>
+              <li>• Ensure all leave records are up to date before generating payroll</li>
+            </ul>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

@@ -30,8 +30,8 @@ import { Button } from "./ui/button";
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Users, label: "Employees", path: "/employees" },
-  { icon: FileText, label: "Payroll", path: "/payroll" },
   { icon: Calendar, label: "Leaves", path: "/leaves" },
+  { icon: FileText, label: "Payroll", path: "/payroll" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
 
