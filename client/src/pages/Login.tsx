@@ -6,24 +6,25 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { APP_TITLE } from "@/const";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const loginMutation = trpc.auth.login.useMutation();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (username === "admin" && password === "admin") {
-      setLoading(true);
+    try {
+      await loginMutation.mutateAsync({ username, password });
       toast.success("Login successful!");
       setTimeout(() => {
         setLocation("/dashboard");
       }, 500);
-    } else {
-      toast.error("Invalid credentials. Use admin/admin");
+    } catch (error: any) {
+      toast.error(error.message || "Invalid credentials");
     }
   };
 
@@ -60,8 +61,8 @@ export default function Login() {
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in..." : "Sign In"}
+          <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
+            {loginMutation.isPending ? "Signing in..." : "Sign In"}
           </Button>
         </form>
 

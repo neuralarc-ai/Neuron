@@ -15,6 +15,13 @@
       "when": 1761296672604,
       "tag": "0001_great_thundra",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1761299560023,
+      "tag": "0002_windy_whistler",
+      "breakpoints": true
     }
   ]
 }

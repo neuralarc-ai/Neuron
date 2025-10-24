@@ -10,14 +10,99 @@ export const appRouter = router({
   system: systemRouter,
 
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return {
-        success: true,
-      } as const;
+    me: publicProcedure.query(({ ctx }) => {
+      const session = (ctx.req as any).session;
+      return session?.user || null;
     }),
+    login: publicProcedure
+      .input(z.object({
+        username: z.string(),
+        password: z.string(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const authDb = await import("./authDb");
+        const user = await authDb.getAuthUserByUsername(input.username);
+        
+        if (!user) {
+          throw new Error("Invalid credentials");
+        }
+        
+        const isValid = await authDb.verifyPassword(input.password, user.password);
+        if (!isValid) {
+          throw new Error("Invalid credentials");
+        }
+        
+        // Update last login
+        await authDb.updateLastLogin(user.id);
+        
+        // Set session
+        const session = (ctx.req as any).session;
+        session.user = user;
+        
+        return {
+          success: true,
+          user: {
+            id: user.id,
+            username: user.username,
+            name: user.name,
+            role: user.role,
+          },
+        };
+      }),
+    logout: publicProcedure.mutation(({ ctx }) => {
+      const session = (ctx.req as any).session;
+      if (session) {
+        session.destroy(() => {});
+      }
+      return { success: true };
+    }),
+  }),
+
+  users: router({
+    list: protectedProcedure.query(async () => {
+      const authDb = await import("./authDb");
+      const users = await authDb.getAllAuthUsers();
+      return users.map(u => ({
+        id: u.id,
+        username: u.username,
+        name: u.name,
+        role: u.role,
+        createdAt: u.createdAt,
+        lastLogin: u.lastLogin,
+      }));
+    }),
+    create: protectedProcedure
+      .input(z.object({
+        username: z.string().min(3),
+        password: z.string().min(4),
+        name: z.string().optional(),
+        role: z.enum(["admin", "user"]).default("user"),
+      }))
+      .mutation(async ({ input }) => {
+        const authDb = await import("./authDb");
+        const existing = await authDb.getAuthUserByUsername(input.username);
+        if (existing) {
+          throw new Error("Username already exists");
+        }
+        const user = await authDb.createAuthUser(input);
+        return {
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          role: user.role,
+        };
+      }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const session = (ctx.req as any).session;
+        if (session?.user?.id === input.id) {
+          throw new Error("Cannot delete your own account");
+        }
+        const authDb = await import("./authDb");
+        await authDb.deleteAuthUser(input.id);
+        return { success: true };
+      }),
   }),
 
   dashboard: router({

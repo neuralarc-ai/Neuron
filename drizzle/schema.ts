@@ -19,6 +19,23 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
 /**
+ * Auth users table - simple username/password authentication
+ */
+export const authUsers = mysqlTable("auth_users", {
+  id: int("id").autoincrement().primaryKey(),
+  username: varchar("username", { length: 100 }).notNull().unique(),
+  password: varchar("password", { length: 255 }).notNull(), // Store hashed password
+  name: varchar("name", { length: 255 }),
+  role: mysqlEnum("role", ["admin", "user"]).default("user").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  lastLogin: timestamp("lastLogin"),
+});
+
+export type AuthUser = typeof authUsers.$inferSelect;
+export type InsertAuthUser = typeof authUsers.$inferInsert;
+
+/**
  * Employees table - stores all employee information
  */
 export const employees = mysqlTable("employees", {
