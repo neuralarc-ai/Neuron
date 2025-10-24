@@ -1,0 +1,316 @@
+{
+  "authUsers": [
+    {
+      "id": 1,
+      "username": "admin",
+      "password": "$2b$10$871xTkUwpFCIz3UPQJfzgeTRu6n8I8J79lOrnofdAnGUdna4V1BB2",
+      "name": "Administrator",
+      "role": "admin",
+      "createdAt": "2025-10-24T09:53:43.000Z",
+      "updatedAt": "2025-10-24T10:22:21.000Z",
+      "lastLogin": "2025-10-24T10:22:22.000Z"
+    }
+  ],
+  "employees": [
+    {
+      "id": 1,
+      "name": "Rajesh Kumar",
+      "email": "rajesh.kumar@neuron.com",
+      "address": "123 MG Road, Bangalore, Karnataka",
+      "joiningDate": "2023-01-15T00:00:00.000Z",
+      "designation": "Senior Software Engineer",
+      "agreementRefId": null,
+      "salary": 85000,
+      "status": "active",
+      "createdAt": "2025-10-24T09:13:58.000Z",
+      "updatedAt": "2025-10-24T09:13:58.000Z"
+    },
+    {
+      "id": 2,
+      "name": "Priya Sharma",
+      "email": "priya.sharma@neuron.com",
+      "address": "456 Connaught Place, New Delhi",
+      "joiningDate": "2023-03-20T00:00:00.000Z",
+      "designation": "Product Manager",
+      "agreementRefId": null,
+      "salary": 95000,
+      "status": "active",
+      "createdAt": "2025-10-24T09:13:58.000Z",
+      "updatedAt": "2025-10-24T09:13:58.000Z"
+    },
+    {
+      "id": 3,
+      "name": "Amit Patel",
+      "email": "amit.patel@neuron.com",
+      "address": "789 Marine Drive, Mumbai, Maharashtra",
+      "joiningDate": "2022-11-10T00:00:00.000Z",
+      "designation": "UI/UX Designer",
+      "agreementRefId": null,
+      "salary": 70000,
+      "status": "active",
+      "createdAt": "2025-10-24T09:13:58.000Z",
+      "updatedAt": "2025-10-24T09:13:58.000Z"
+    },
+    {
+      "id": 4,
+      "name": "Sneha Reddy",
+      "email": "sneha.reddy@neuron.com",
+      "address": "321 Jubilee Hills, Hyderabad, Telangana",
+      "joiningDate": "2023-05-01T00:00:00.000Z",
+      "designation": "HR Manager",
+      "agreementRefId": null,
+      "salary": 75000,
+      "status": "active",
+      "createdAt": "2025-10-24T09:13:58.000Z",
+      "updatedAt": "2025-10-24T09:13:58.000Z"
+    },
+    {
+      "id": 5,
+      "name": "Vikram Singh",
+      "email": "vikram.singh@neuron.com",
+      "address": "654 Park Street, Kolkata, West Bengal",
+      "joiningDate": "2022-08-15T00:00:00.000Z",
+      "designation": "DevOps Engineer",
+      "agreementRefId": null,
+      "salary": 80000,
+      "status": "active",
+      "createdAt": "2025-10-24T09:13:58.000Z",
+      "updatedAt": "2025-10-24T09:13:58.000Z"
+    },
+    {
+      "id": 6,
+      "name": "Ananya Iyer",
+      "email": "ananya.iyer@neuron.com",
+      "address": "987 Anna Salai, Chennai, Tamil Nadu",
+      "joiningDate": "2023-02-28T00:00:00.000Z",
+      "designation": "Data Analyst",
+      "agreementRefId": null,
+      "salary": 65000,
+      "status": "active",
+      "createdAt": "2025-10-24T09:13:58.000Z",
+      "updatedAt": "2025-10-24T09:13:58.000Z"
+    }
+  ],
+  "holidays": [
+    {
+      "id": 1,
+      "employeeId": 1,
+      "month": 10,
+      "year": 2025,
+      "leavesTaken": 1,
+      "createdAt": "2025-10-24T09:13:58.000Z",
+      "updatedAt": "2025-10-24T09:13:58.000Z"
+    },
+    {
+      "id": 2,
+      "employeeId": 2,
+      "month": 10,
+      "year": 2025,
+      "leavesTaken": 2,
+      "createdAt": "2025-10-24T09:13:58.000Z",
+      "updatedAt": "2025-10-24T09:43:47.000Z"
+    },
+    {
+      "id": 3,
+      "employeeId": 3,
+      "month": 10,
+      "year": 2025,
+      "leavesTaken": 1,
+      "createdAt": "2025-10-24T09:13:58.000Z",
+      "updatedAt": "2025-10-24T09:43:48.000Z"
+    },
+    {
+      "id": 4,
+      "employeeId": 4,
+      "month": 10,
+      "year": 2025,
+      "leavesTaken": 1,
+      "createdAt": "2025-10-24T09:13:58.000Z",
+      "updatedAt": "2025-10-24T09:43:49.000Z"
+    },
+    {
+      "id": 5,
+      "employeeId": 5,
+      "month": 10,
+      "year": 2025,
+      "leavesTaken": 1,
+      "createdAt": "2025-10-24T09:13:58.000Z",
+      "updatedAt": "2025-10-24T09:43:50.000Z"
+    },
+    {
+      "id": 6,
+      "employeeId": 6,
+      "month": 10,
+      "year": 2025,
+      "leavesTaken": 1,
+      "createdAt": "2025-10-24T09:13:58.000Z",
+      "updatedAt": "2025-10-24T09:13:58.000Z"
+    },
+    {
+      "id": 7,
+      "employeeId": 3,
+      "month": 2,
+      "year": 2025,
+      "leavesTaken": 3,
+      "createdAt": "2025-10-24T09:26:17.000Z",
+      "updatedAt": "2025-10-24T09:26:17.000Z"
+    }
+  ],
+  "salaryHistory": [],
+  "payslips": [
+    {
+      "id": 1,
+      "employeeId": 1,
+      "month": 2,
+      "year": 2024,
+      "grossSalary": 85000,
+      "tds": 8500,
+      "deductions": 0,
+      "netSalary": 76500,
+      "pdfUrl": null,
+      "createdAt": "2025-10-24T09:16:52.000Z"
+    },
+    {
+      "id": 2,
+      "employeeId": 2,
+      "month": 2,
+      "year": 2024,
+      "grossSalary": 95000,
+      "tds": 9500,
+      "deductions": 0,
+      "netSalary": 85500,
+      "pdfUrl": null,
+      "createdAt": "2025-10-24T09:16:53.000Z"
+    },
+    {
+      "id": 3,
+      "employeeId": 3,
+      "month": 2,
+      "year": 2024,
+      "grossSalary": 70000,
+      "tds": 7000,
+      "deductions": 0,
+      "netSalary": 63000,
+      "pdfUrl": null,
+      "createdAt": "2025-10-24T09:16:54.000Z"
+    },
+    {
+      "id": 4,
+      "employeeId": 4,
+      "month": 2,
+      "year": 2024,
+      "grossSalary": 75000,
+      "tds": 7500,
+      "deductions": 0,
+      "netSalary": 67500,
+      "pdfUrl": null,
+      "createdAt": "2025-10-24T09:16:54.000Z"
+    },
+    {
+      "id": 5,
+      "employeeId": 5,
+      "month": 2,
+      "year": 2024,
+      "grossSalary": 80000,
+      "tds": 8000,
+      "deductions": 0,
+      "netSalary": 72000,
+      "pdfUrl": null,
+      "createdAt": "2025-10-24T09:16:55.000Z"
+    },
+    {
+      "id": 6,
+      "employeeId": 6,
+      "month": 2,
+      "year": 2024,
+      "grossSalary": 65000,
+      "tds": 6500,
+      "deductions": 0,
+      "netSalary": 58500,
+      "pdfUrl": null,
+      "createdAt": "2025-10-24T09:16:56.000Z"
+    },
+    {
+      "id": 7,
+      "employeeId": 1,
+      "month": 2,
+      "year": 2023,
+      "grossSalary": 85000,
+      "tds": 8500,
+      "deductions": 0,
+      "netSalary": 76500,
+      "pdfUrl": null,
+      "createdAt": "2025-10-24T09:26:39.000Z"
+    },
+    {
+      "id": 8,
+      "employeeId": 2,
+      "month": 2,
+      "year": 2023,
+      "grossSalary": 95000,
+      "tds": 9500,
+      "deductions": 0,
+      "netSalary": 85500,
+      "pdfUrl": null,
+      "createdAt": "2025-10-24T09:26:39.000Z"
+    },
+    {
+      "id": 9,
+      "employeeId": 3,
+      "month": 2,
+      "year": 2023,
+      "grossSalary": 70000,
+      "tds": 7000,
+      "deductions": 0,
+      "netSalary": 63000,
+      "pdfUrl": null,
+      "createdAt": "2025-10-24T09:26:40.000Z"
+    },
+    {
+      "id": 10,
+      "employeeId": 4,
+      "month": 2,
+      "year": 2023,
+      "grossSalary": 75000,
+      "tds": 7500,
+      "deductions": 0,
+      "netSalary": 67500,
+      "pdfUrl": null,
+      "createdAt": "2025-10-24T09:26:41.000Z"
+    },
+    {
+      "id": 11,
+      "employeeId": 5,
+      "month": 2,
+      "year": 2023,
+      "grossSalary": 80000,
+      "tds": 8000,
+      "deductions": 0,
+      "netSalary": 72000,
+      "pdfUrl": null,
+      "createdAt": "2025-10-24T09:26:41.000Z"
+    },
+    {
+      "id": 12,
+      "employeeId": 6,
+      "month": 2,
+      "year": 2023,
+      "grossSalary": 65000,
+      "tds": 6500,
+      "deductions": 0,
+      "netSalary": 58500,
+      "pdfUrl": null,
+      "createdAt": "2025-10-24T09:26:42.000Z"
+    }
+  ],
+  "settings": [
+    {
+      "id": 1,
+      "leaveQuotaPerMonth": 2,
+      "tdsRate": 10,
+      "workingDaysPerMonth": 22,
+      "createdAt": "2025-10-24T09:12:16.000Z",
+      "updatedAt": "2025-10-24T09:12:16.000Z"
+    }
+  ]
+}

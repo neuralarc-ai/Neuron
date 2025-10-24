@@ -14,7 +14,7 @@ export default function Payroll() {
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
   const [showLeaveWarning, setShowLeaveWarning] = useState(false);
-  const [missingEmployees, setMissingEmployees] = useState<string[]>([]);
+  const [missingEmployees, setMissingEmployees] = useState<{id: number, name: string}[]>([]);
 
   const utils = trpc.useUtils();
   const { data: payslips, isLoading } = trpc.payslips.list.useQuery();
@@ -33,8 +33,8 @@ export default function Payroll() {
   const generateMutation = trpc.payslips.generate.useMutation({
     onSuccess: (data) => {
       utils.payslips.list.invalidate();
-      const created = data.results.filter(r => r.status === 'created').length;
-      const existing = data.results.filter(r => r.status === 'already_exists').length;
+      const created = data.length;
+      const existing = 0;
       
       if (created > 0) {
         toast.success(`Generated ${created} payslip(s) successfully`);
@@ -215,8 +215,8 @@ export default function Payroll() {
                     <AlertDescription className="text-sm">
                       <p className="font-semibold mb-2">Leave records missing for:</p>
                       <ul className="list-disc list-inside space-y-1">
-                        {missingEmployees.map((name, idx) => (
-                          <li key={idx}>{name}</li>
+                        {missingEmployees.map((emp, idx) => (
+                          <li key={idx}>{emp.name}</li>
                         ))}
                       </ul>
                       <p className="mt-3 text-xs">

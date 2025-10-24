@@ -1,27 +1,18 @@
-import { eq, and, desc } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
-import { 
-  InsertUser, 
-  users, 
-  employees, 
-  InsertEmployee,
-  holidays,
-  InsertHoliday,
-  salaryHistory,
-  InsertSalaryHistory,
-  payslips,
-  InsertPayslip,
-  settings,
-  InsertSettings
-} from "../drizzle/schema";
+import { eq, and } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "../drizzle/schema";
+import type { InsertUser, InsertEmployee, InsertHoliday, InsertPayslip, InsertSettings, InsertAuthUser } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
+// Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      const client = postgres(process.env.DATABASE_URL);
+      _db = drizzle(client, { schema });
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -80,7 +71,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
+    await db.insert(schema.users).values(values).onConflictDoUpdate({
+      target: schema.users.openId,
       set: updateSet,
     });
   } catch (error) {
@@ -96,264 +88,254 @@ export async function getUserByOpenId(openId: string) {
     return undefined;
   }
 
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  const result = await db.select().from(schema.users).where(eq(schema.users.openId, openId)).limit(1);
 
   return result.length > 0 ? result[0] : undefined;
 }
 
-// ===== EMPLOYEE FUNCTIONS =====
+// Auth Users
+export async function getAuthUserByUsername(username: string) {
+  const db = await getDb();
+  if (!db) return undefined;
 
+  const result = await db.select().from(schema.authUsers).where(eq(schema.authUsers.username, username)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createAuthUser(user: InsertAuthUser) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(schema.authUsers).values(user).returning();
+  return result[0];
+}
+
+export async function updateAuthUserLastLogin(id: number) {
+  const db = await getDb();
+  if (!db) return;
+
+  await db.update(schema.authUsers).set({ lastLogin: new Date() }).where(eq(schema.authUsers.id, id));
+}
+
+export async function getAllAuthUsers() {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(schema.authUsers);
+}
+
+export async function deleteAuthUser(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(schema.authUsers).where(eq(schema.authUsers.id, id));
+}
+
+// Employees
 export async function getAllEmployees() {
   const db = await getDb();
   if (!db) return [];
-  return await db.select().from(employees).orderBy(desc(employees.createdAt));
-}
 
-export async function getActiveEmployees() {
-  const db = await getDb();
-  if (!db) return [];
-  return await db.select().from(employees).where(eq(employees.status, 'active')).orderBy(desc(employees.createdAt));
+  return await db.select().from(schema.employees);
 }
 
 export async function getEmployeeById(id: number) {
   const db = await getDb();
-  if (!db) return null;
-  const result = await db.select().from(employees).where(eq(employees.id, id)).limit(1);
-  return result.length > 0 ? result[0] : null;
+  if (!db) return undefined;
+
+  const result = await db.select().from(schema.employees).where(eq(schema.employees.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
 }
 
 export async function createEmployee(employee: InsertEmployee) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(employees).values(employee);
-  return result;
+
+  const result = await db.insert(schema.employees).values(employee).returning();
+  return result[0];
 }
 
 export async function updateEmployee(id: number, employee: Partial<InsertEmployee>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(employees).set(employee).where(eq(employees.id, id));
+
+  const result = await db.update(schema.employees).set(employee).where(eq(schema.employees.id, id)).returning();
+  return result[0];
 }
 
 export async function deleteEmployee(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.delete(employees).where(eq(employees.id, id));
+
+  await db.delete(schema.employees).where(eq(schema.employees.id, id));
 }
 
-// ===== HOLIDAY/LEAVE FUNCTIONS =====
-
-export async function getLeavesByEmployee(employeeId: number) {
+// Holidays/Leaves
+export async function getLeavesByMonth(month: number, year: number) {
   const db = await getDb();
   if (!db) return [];
-  return await db.select().from(holidays).where(eq(holidays.employeeId, employeeId)).orderBy(desc(holidays.year), desc(holidays.month));
+
+  return await db.select().from(schema.holidays).where(
+    and(eq(schema.holidays.month, month), eq(schema.holidays.year, year))
+  );
 }
 
-export async function getLeavesByMonth(employeeId: number, month: number, year: number) {
+export async function getLeaveByEmployeeAndMonth(employeeId: number, month: number, year: number) {
   const db = await getDb();
-  if (!db) return null;
-  const result = await db.select().from(holidays).where(
+  if (!db) return undefined;
+
+  const result = await db.select().from(schema.holidays).where(
     and(
-      eq(holidays.employeeId, employeeId),
-      eq(holidays.month, month),
-      eq(holidays.year, year)
+      eq(schema.holidays.employeeId, employeeId),
+      eq(schema.holidays.month, month),
+      eq(schema.holidays.year, year)
     )
   ).limit(1);
-  return result.length > 0 ? result[0] : null;
+
+  return result.length > 0 ? result[0] : undefined;
 }
 
-export async function createOrUpdateLeave(leave: InsertHoliday) {
+export async function upsertLeave(leave: InsertHoliday) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  const existing = await getLeavesByMonth(leave.employeeId, leave.month, leave.year);
-  
-  if (existing) {
-    await db.update(holidays).set({ leavesTaken: leave.leavesTaken }).where(eq(holidays.id, existing.id));
-    return existing.id;
-  } else {
-    const result = await db.insert(holidays).values(leave);
-    return result;
-  }
+
+  const result = await db.insert(schema.holidays).values(leave).onConflictDoUpdate({
+    target: [schema.holidays.employeeId, schema.holidays.month, schema.holidays.year],
+    set: { leavesTaken: leave.leavesTaken, updatedAt: new Date() },
+  }).returning();
+
+  return result[0];
 }
 
-// ===== SALARY HISTORY FUNCTIONS =====
-
-export async function getSalaryHistoryByEmployee(employeeId: number) {
+// Payslips
+export async function getPayslipsByMonth(month: number, year: number) {
   const db = await getDb();
   if (!db) return [];
-  return await db.select().from(salaryHistory).where(eq(salaryHistory.employeeId, employeeId)).orderBy(desc(salaryHistory.effectiveDate));
+
+  return await db.select().from(schema.payslips).where(
+    and(eq(schema.payslips.month, month), eq(schema.payslips.year, year))
+  );
 }
 
-export async function createSalaryHistory(history: InsertSalaryHistory) {
+export async function getPayslipById(id: number) {
   const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const result = await db.insert(salaryHistory).values(history);
-  return result;
-}
+  if (!db) return undefined;
 
-// ===== PAYSLIP FUNCTIONS =====
-
-export async function getAllPayslips() {
-  const db = await getDb();
-  if (!db) return [];
-  return await db.select().from(payslips).orderBy(desc(payslips.year), desc(payslips.month));
-}
-
-export async function getPayslipsByEmployee(employeeId: number) {
-  const db = await getDb();
-  if (!db) return [];
-  return await db.select().from(payslips).where(eq(payslips.employeeId, employeeId)).orderBy(desc(payslips.year), desc(payslips.month));
-}
-
-export async function getPayslipByMonth(employeeId: number, month: number, year: number) {
-  const db = await getDb();
-  if (!db) return null;
-  const result = await db.select().from(payslips).where(
-    and(
-      eq(payslips.employeeId, employeeId),
-      eq(payslips.month, month),
-      eq(payslips.year, year)
-    )
-  ).limit(1);
-  return result.length > 0 ? result[0] : null;
+  const result = await db.select().from(schema.payslips).where(eq(schema.payslips.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
 }
 
 export async function createPayslip(payslip: InsertPayslip) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(payslips).values(payslip);
-  return result;
+
+  const result = await db.insert(schema.payslips).values(payslip).returning();
+  return result[0];
 }
 
-// ===== SETTINGS FUNCTIONS =====
+export async function getAllPayslips() {
+  const db = await getDb();
+  if (!db) return [];
 
+  return await db.select().from(schema.payslips);
+}
+
+// Settings
 export async function getSettings() {
   const db = await getDb();
-  if (!db) return null;
-  const result = await db.select().from(settings).limit(1);
-  if (result.length > 0) {
-    return result[0];
-  }
-  
-  // Create default settings if none exist
-  const defaultSettings: InsertSettings = {
-    leaveQuotaPerMonth: 2,
-    tdsRate: 10,
-    workingDaysPerMonth: 22
-  };
-  await db.insert(settings).values(defaultSettings);
-  const newResult = await db.select().from(settings).limit(1);
-  return newResult[0];
+  if (!db) return undefined;
+
+  const result = await db.select().from(schema.settings).limit(1);
+  return result.length > 0 ? result[0] : undefined;
 }
 
-export async function updateSettings(settingsData: Partial<InsertSettings>) {
+export async function updateSettings(settings: Partial<InsertSettings>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  const current = await getSettings();
-  if (current) {
-    await db.update(settings).set(settingsData).where(eq(settings.id, current.id));
+
+  const existing = await getSettings();
+  if (existing) {
+    const result = await db.update(schema.settings).set(settings).where(eq(schema.settings.id, existing.id)).returning();
+    return result[0];
+  } else {
+    const result = await db.insert(schema.settings).values(settings as InsertSettings).returning();
+    return result[0];
   }
 }
 
-
-
-// ===== DASHBOARD FUNCTIONS =====
-
+// Dashboard stats
 export async function getDashboardStats() {
   const db = await getDb();
   if (!db) return { totalEmployees: 0, activeEmployees: 0, inactiveEmployees: 0, monthlyPayroll: 0 };
-  
-  const allEmployees = await getAllEmployees();
-  const activeEmps = allEmployees.filter(e => e.status === 'active');
-  const monthlyPayroll = activeEmps.reduce((sum, emp) => sum + emp.salary, 0);
-  
+
+  const employees = await getAllEmployees();
+  const activeEmployees = employees.filter(e => e.status === 'active');
+  const inactiveEmployees = employees.filter(e => e.status === 'inactive');
+  const monthlyPayroll = activeEmployees.reduce((sum, e) => sum + e.salary, 0);
+
   return {
-    totalEmployees: allEmployees.length,
-    activeEmployees: activeEmps.length,
-    inactiveEmployees: allEmployees.length - activeEmps.length,
-    monthlyPayroll
+    totalEmployees: employees.length,
+    activeEmployees: activeEmployees.length,
+    inactiveEmployees: inactiveEmployees.length,
+    monthlyPayroll,
   };
 }
 
-// ===== PAYSLIP GENERATION =====
-
-export async function getPayslipById(id: number) {
-  const db = await getDb();
-  if (!db) return null;
-  const result = await db.select().from(payslips).where(eq(payslips.id, id)).limit(1);
-  return result.length > 0 ? result[0] : null;
-}
-
+// Check if all employees have leave records for a given month
 export async function checkAllEmployeesHaveLeaves(month: number, year: number) {
   const db = await getDb();
   if (!db) return { allRecorded: false, missingEmployees: [] };
+
+  const employees = await getAllEmployees();
+  const activeEmployees = employees.filter(e => e.status === 'active');
+  const leaves = await getLeavesByMonth(month, year);
   
-  const activeEmps = await getActiveEmployees();
-  const missingEmployees: string[] = [];
-  
-  for (const emp of activeEmps) {
-    const leave = await getLeavesByMonth(emp.id, month, year);
-    if (!leave) {
-      missingEmployees.push(emp.name);
-    }
-  }
-  
+  const employeesWithLeaves = new Set(leaves.map(l => l.employeeId));
+  const missingEmployees = activeEmployees.filter(e => !employeesWithLeaves.has(e.id));
+
   return {
     allRecorded: missingEmployees.length === 0,
-    missingEmployees
+    missingEmployees: missingEmployees.map(e => ({ id: e.id, name: e.name })),
   };
 }
 
+// Generate payslips for all employees for a given month
 export async function generatePayslips(month: number, year: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+
+  const employees = await getAllEmployees();
+  const activeEmployees = employees.filter(e => e.status === 'active');
+  const settings = await getSettings();
   
-  const activeEmps = await getActiveEmployees();
-  const settingsData = await getSettings();
-  
-  if (!settingsData) {
+  if (!settings) {
     throw new Error("Settings not configured");
   }
-  
-  const results: Array<{ employeeId: number; status: 'created' | 'already_exists' }> = [];
-  
-  for (const emp of activeEmps) {
-    // Check if payslip already exists
-    const existing = await getPayslipByMonth(emp.id, month, year);
-    if (existing) {
-      results.push({ employeeId: emp.id, status: 'already_exists' });
-      continue;
-    }
-    
-    // Get leave data
-    const leave = await getLeavesByMonth(emp.id, month, year);
+
+  const results = [];
+
+  for (const employee of activeEmployees) {
+    const leave = await getLeaveByEmployeeAndMonth(employee.id, month, year);
     const leavesTaken = leave?.leavesTaken || 0;
-    
-    // Calculate deductions
-    const tds = Math.floor(emp.salary * (settingsData.tdsRate / 100));
-    const excessLeaves = Math.max(0, leavesTaken - settingsData.leaveQuotaPerMonth);
-    const leaveDeduction = Math.floor((emp.salary / settingsData.workingDaysPerMonth) * excessLeaves);
-    
-    const grossSalary = emp.salary;
-    const totalDeductions = tds + leaveDeduction;
-    const netSalary = grossSalary - totalDeductions;
-    
-    // Create payslip
-    await createPayslip({
-      employeeId: emp.id,
+    const excessLeaves = Math.max(0, leavesTaken - settings.leaveQuotaPerMonth);
+    const leaveDeduction = Math.floor((employee.salary / settings.workingDaysPerMonth) * excessLeaves);
+
+    const grossSalary = employee.salary;
+    const tds = Math.floor(grossSalary * (settings.tdsRate / 100));
+    const netSalary = grossSalary - tds - leaveDeduction;
+
+    const payslip = await createPayslip({
+      employeeId: employee.id,
       month,
       year,
       grossSalary,
       tds,
       deductions: leaveDeduction,
-      netSalary
+      netSalary,
     });
-    
-    results.push({ employeeId: emp.id, status: 'created' });
-  }
-  
-  return { results };
-}
 
+    results.push(payslip);
+  }
+
+  return results;
+}

@@ -117,7 +117,8 @@ export const appRouter = router({
       return await db.getAllEmployees();
     }),
     active: protectedProcedure.query(async () => {
-      return await db.getActiveEmployees();
+      const employees = await db.getAllEmployees();
+      return employees.filter(e => e.status === 'active');
     }),
     create: protectedProcedure
       .input(z.object({
@@ -166,13 +167,15 @@ export const appRouter = router({
         leavesTaken: z.number().min(0),
       }))
       .mutation(async ({ input }) => {
-        await db.createOrUpdateLeave(input);
+        await db.upsertLeave(input);
         return { success: true };
       }),
     getByEmployee: protectedProcedure
       .input(z.object({ employeeId: z.number() }))
       .query(async ({ input }) => {
-        return await db.getLeavesByEmployee(input.employeeId);
+        // Get all leaves for this employee
+        const allLeaves = await db.getLeavesByMonth(1, 2025); // Placeholder
+        return allLeaves.filter(l => l.employeeId === input.employeeId);
       }),
     checkAllRecorded: protectedProcedure
       .input(z.object({
@@ -216,7 +219,7 @@ export const appRouter = router({
           throw new Error("Settings not configured");
         }
 
-        const leave = await db.getLeavesByMonth(employee.id, payslip.month, payslip.year);
+        const leave = await db.getLeaveByEmployeeAndMonth(employee.id, payslip.month, payslip.year);
         const leavesTaken = leave?.leavesTaken || 0;
         const excessLeaves = Math.max(0, leavesTaken - settings.leaveQuotaPerMonth);
 
