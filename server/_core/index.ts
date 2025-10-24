@@ -4,11 +4,11 @@ import { createServer } from "http";
 import net from "net";
 import session from "express-session";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./oauth";
+
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { initializeDefaultAdmin } from "../authDb";
+
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -33,8 +33,7 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
   
-  // Initialize default admin user
-  await initializeDefaultAdmin();
+
   
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
@@ -54,8 +53,7 @@ async function startServer() {
     })
   );
   
-  // OAuth callback under /api/oauth/callback
-  registerOAuthRoutes(app);
+
   // tRPC API
   app.use(
     "/api/trpc",

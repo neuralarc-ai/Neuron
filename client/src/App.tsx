@@ -9,7 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import Employees from "./pages/Employees";
 import Leaves from "./pages/Leaves";
 import Payroll from "./pages/Payroll";
-import Users from "./pages/Users";
+
 import Settings from "./pages/Settings";
 
 function Router() {
@@ -22,7 +22,7 @@ function Router() {
       <Route path="/employees" component={Employees} />
       <Route path="/leaves" component={Leaves} />
       <Route path="/payroll" component={Payroll} />
-      <Route path="/users" component={Users} />
+
       <Route path="/settings" component={Settings} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

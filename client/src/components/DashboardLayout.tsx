@@ -32,7 +32,7 @@ const menuItems = [
   { icon: Users, label: "Employees", path: "/employees" },
   { icon: Calendar, label: "Leaves", path: "/leaves" },
   { icon: FileText, label: "Payroll", path: "/payroll" },
-  { icon: UserCog, label: "Users", path: "/users" },
+
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
 

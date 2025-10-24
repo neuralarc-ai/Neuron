@@ -1,7 +1,6 @@
-import { COOKIE_NAME } from "@shared/const";
-import { getSessionCookieOptions } from "./_core/cookies";
+
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
 import { generatePayslipPDF } from "./payslipPdf";
@@ -9,117 +8,21 @@ import { generatePayslipPDF } from "./payslipPdf";
 export const appRouter = router({
   system: systemRouter,
 
-  auth: router({
-    me: publicProcedure.query(({ ctx }) => {
-      const session = (ctx.req as any).session;
-      return session?.user || null;
-    }),
-    login: publicProcedure
-      .input(z.object({
-        username: z.string(),
-        password: z.string(),
-      }))
-      .mutation(async ({ input, ctx }) => {
-        const authDb = await import("./authDb");
-        const user = await authDb.getAuthUserByUsername(input.username);
-        
-        if (!user) {
-          throw new Error("Invalid credentials");
-        }
-        
-        const isValid = await authDb.verifyPassword(input.password, user.password);
-        if (!isValid) {
-          throw new Error("Invalid credentials");
-        }
-        
-        // Update last login
-        await authDb.updateLastLogin(user.id);
-        
-        // Set session
-        const session = (ctx.req as any).session;
-        session.user = user;
-        
-        return {
-          success: true,
-          user: {
-            id: user.id,
-            username: user.username,
-            name: user.name,
-            role: user.role,
-          },
-        };
-      }),
-    logout: publicProcedure.mutation(({ ctx }) => {
-      const session = (ctx.req as any).session;
-      if (session) {
-        session.destroy(() => {});
-      }
-      return { success: true };
-    }),
-  }),
-
-  users: router({
-    list: protectedProcedure.query(async () => {
-      const authDb = await import("./authDb");
-      const users = await authDb.getAllAuthUsers();
-      return users.map(u => ({
-        id: u.id,
-        username: u.username,
-        name: u.name,
-        role: u.role,
-        createdAt: u.createdAt,
-        lastLogin: u.lastLogin,
-      }));
-    }),
-    create: protectedProcedure
-      .input(z.object({
-        username: z.string().min(3),
-        password: z.string().min(4),
-        name: z.string().optional(),
-        role: z.enum(["admin", "user"]).default("user"),
-      }))
-      .mutation(async ({ input }) => {
-        const authDb = await import("./authDb");
-        const existing = await authDb.getAuthUserByUsername(input.username);
-        if (existing) {
-          throw new Error("Username already exists");
-        }
-        const user = await authDb.createAuthUser(input);
-        return {
-          id: user.id,
-          username: user.username,
-          name: user.name,
-          role: user.role,
-        };
-      }),
-    delete: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async ({ input, ctx }) => {
-        const session = (ctx.req as any).session;
-        if (session?.user?.id === input.id) {
-          throw new Error("Cannot delete your own account");
-        }
-        const authDb = await import("./authDb");
-        await authDb.deleteAuthUser(input.id);
-        return { success: true };
-      }),
-  }),
-
   dashboard: router({
-    stats: protectedProcedure.query(async () => {
+    stats: publicProcedure.query(async () => {
       const stats = await db.getDashboardStats();
       return stats;
     }),
   }),
 
   employees: router({
-    list: protectedProcedure.query(async () => {
+    list: publicProcedure.query(async () => {
       return await db.getAllEmployees();
     }),
-    active: protectedProcedure.query(async () => {
+    active: publicProcedure.query(async () => {
       return await db.getActiveEmployees();
     }),
-    create: protectedProcedure
+    create: publicProcedure
       .input(z.object({
         name: z.string(),
         email: z.string().email(),
@@ -133,7 +36,7 @@ export const appRouter = router({
         await db.createEmployee(input);
         return { success: true };
       }),
-    update: protectedProcedure
+    update: publicProcedure
       .input(z.object({
         id: z.number(),
         name: z.string(),
@@ -149,7 +52,7 @@ export const appRouter = router({
         await db.updateEmployee(id, data);
         return { success: true };
       }),
-    delete: protectedProcedure
+    delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         await db.deleteEmployee(input.id);
@@ -158,7 +61,7 @@ export const appRouter = router({
   }),
 
   leaves: router({
-    createOrUpdate: protectedProcedure
+    createOrUpdate: publicProcedure
       .input(z.object({
         employeeId: z.number(),
         month: z.number().min(1).max(12),
@@ -169,12 +72,12 @@ export const appRouter = router({
         await db.createOrUpdateLeave(input);
         return { success: true };
       }),
-    getByEmployee: protectedProcedure
+    getByEmployee: publicProcedure
       .input(z.object({ employeeId: z.number() }))
       .query(async ({ input }) => {
         return await db.getLeavesByEmployee(input.employeeId);
       }),
-    checkAllRecorded: protectedProcedure
+    checkAllRecorded: publicProcedure
       .input(z.object({
         month: z.number().min(1).max(12),
         year: z.number(),
@@ -186,10 +89,10 @@ export const appRouter = router({
   }),
 
   payslips: router({
-    list: protectedProcedure.query(async () => {
+    list: publicProcedure.query(async () => {
       return await db.getAllPayslips();
     }),
-    generate: protectedProcedure
+    generate: publicProcedure
       .input(z.object({
         month: z.number().min(1).max(12),
         year: z.number(),
@@ -198,7 +101,7 @@ export const appRouter = router({
         const results = await db.generatePayslips(input.month, input.year);
         return results;
       }),
-    downloadPdf: protectedProcedure
+    downloadPdf: publicProcedure
       .input(z.object({ payslipId: z.number() }))
       .mutation(async ({ input, ctx }) => {
         const payslip = await db.getPayslipById(input.payslipId);
@@ -270,10 +173,10 @@ export const appRouter = router({
   }),
 
   settings: router({
-    get: protectedProcedure.query(async () => {
+    get: publicProcedure.query(async () => {
       return await db.getSettings();
     }),
-    update: protectedProcedure
+    update: publicProcedure
       .input(z.object({
         leaveQuotaPerMonth: z.number(),
         tdsRate: z.number(),
