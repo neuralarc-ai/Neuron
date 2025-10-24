@@ -257,3 +257,103 @@ export async function updateSettings(settingsData: Partial<InsertSettings>) {
   }
 }
 
+
+
+// ===== DASHBOARD FUNCTIONS =====
+
+export async function getDashboardStats() {
+  const db = await getDb();
+  if (!db) return { totalEmployees: 0, activeEmployees: 0, inactiveEmployees: 0, monthlyPayroll: 0 };
+  
+  const allEmployees = await getAllEmployees();
+  const activeEmps = allEmployees.filter(e => e.status === 'active');
+  const monthlyPayroll = activeEmps.reduce((sum, emp) => sum + emp.salary, 0);
+  
+  return {
+    totalEmployees: allEmployees.length,
+    activeEmployees: activeEmps.length,
+    inactiveEmployees: allEmployees.length - activeEmps.length,
+    monthlyPayroll
+  };
+}
+
+// ===== PAYSLIP GENERATION =====
+
+export async function getPayslipById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(payslips).where(eq(payslips.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function checkAllEmployeesHaveLeaves(month: number, year: number) {
+  const db = await getDb();
+  if (!db) return { allRecorded: false, missingEmployees: [] };
+  
+  const activeEmps = await getActiveEmployees();
+  const missingEmployees: string[] = [];
+  
+  for (const emp of activeEmps) {
+    const leave = await getLeavesByMonth(emp.id, month, year);
+    if (!leave) {
+      missingEmployees.push(emp.name);
+    }
+  }
+  
+  return {
+    allRecorded: missingEmployees.length === 0,
+    missingEmployees
+  };
+}
+
+export async function generatePayslips(month: number, year: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const activeEmps = await getActiveEmployees();
+  const settingsData = await getSettings();
+  
+  if (!settingsData) {
+    throw new Error("Settings not configured");
+  }
+  
+  const results: Array<{ employeeId: number; status: 'created' | 'already_exists' }> = [];
+  
+  for (const emp of activeEmps) {
+    // Check if payslip already exists
+    const existing = await getPayslipByMonth(emp.id, month, year);
+    if (existing) {
+      results.push({ employeeId: emp.id, status: 'already_exists' });
+      continue;
+    }
+    
+    // Get leave data
+    const leave = await getLeavesByMonth(emp.id, month, year);
+    const leavesTaken = leave?.leavesTaken || 0;
+    
+    // Calculate deductions
+    const tds = Math.floor(emp.salary * (settingsData.tdsRate / 100));
+    const excessLeaves = Math.max(0, leavesTaken - settingsData.leaveQuotaPerMonth);
+    const leaveDeduction = Math.floor((emp.salary / settingsData.workingDaysPerMonth) * excessLeaves);
+    
+    const grossSalary = emp.salary;
+    const totalDeductions = tds + leaveDeduction;
+    const netSalary = grossSalary - totalDeductions;
+    
+    // Create payslip
+    await createPayslip({
+      employeeId: emp.id,
+      month,
+      year,
+      grossSalary,
+      tds,
+      deductions: leaveDeduction,
+      netSalary
+    });
+    
+    results.push({ employeeId: emp.id, status: 'created' });
+  }
+  
+  return { results };
+}
+

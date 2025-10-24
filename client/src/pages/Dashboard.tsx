@@ -38,7 +38,7 @@ export default function Dashboard() {
           <div className="space-y-6">
             <div>
               <h1 className="text-3xl font-bold">Dashboard</h1>
-              <p className="text-muted-foreground">Welcome to Neuron HRMS</p>
+              <p className="text-muted-foreground">Welcome to Neuron</p>
             </div>
             <div className="bento-grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
               {[1, 2, 3, 4].map((i) => (
@@ -92,7 +92,7 @@ export default function Dashboard() {
           />
           <StatCard
             title="Monthly Payroll"
-            value={formatCurrency(stats?.totalPayroll || 0)}
+            value={formatCurrency(stats?.monthlyPayroll || 0)}
             icon={DollarSign}
             color="bg-[rgb(var(--mustard))]"
           />
@@ -101,7 +101,7 @@ export default function Dashboard() {
         {/* Welcome Card */}
         <div className="bento-card bg-gradient-to-br from-[rgb(var(--lavander))]/10 to-[rgb(var(--sky))]/10 border-[rgb(var(--lavander))]/20">
           <div className="space-y-4">
-            <h2 className="text-2xl font-bold">Welcome to Neuron HRMS</h2>
+            <h2 className="text-2xl font-bold">Welcome to Neuron</h2>
             <p className="text-muted-foreground max-w-2xl">
               Manage your employees, track leaves, process payroll, and generate payslips all in one place. 
               Navigate through the sidebar to access different modules.

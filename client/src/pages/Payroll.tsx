@@ -3,19 +3,32 @@ import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Download, Calendar as CalendarIcon, DollarSign } from "lucide-react";
+import { FileText, Download, Calendar as CalendarIcon, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Payroll() {
   const [open, setOpen] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
+  const [showLeaveWarning, setShowLeaveWarning] = useState(false);
+  const [missingEmployees, setMissingEmployees] = useState<string[]>([]);
 
   const utils = trpc.useUtils();
   const { data: payslips, isLoading } = trpc.payslips.list.useQuery();
   const { data: employees } = trpc.employees.list.useQuery();
+
+  const checkLeavesMutation = trpc.leaves.checkAllRecorded.useQuery(
+    {
+      month: parseInt(selectedMonth),
+      year: parseInt(selectedYear),
+    },
+    {
+      enabled: false,
+    }
+  );
 
   const generateMutation = trpc.payslips.generate.useMutation({
     onSuccess: (data) => {
@@ -35,18 +48,65 @@ export default function Payroll() {
     onError: () => toast.error("Failed to generate payslips"),
   });
 
+  const downloadMutation = trpc.payslips.downloadPdf.useMutation({
+    onSuccess: (data) => {
+      // Convert base64 to blob and download
+      const byteCharacters = atob(data.data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = data.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("Payslip downloaded successfully");
+    },
+    onError: () => toast.error("Failed to download payslip"),
+  });
+
   const resetForm = () => {
     setSelectedMonth("");
     setSelectedYear("");
+    setShowLeaveWarning(false);
+    setMissingEmployees([]);
   };
 
-  const handleGenerate = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCheckLeaves = async () => {
+    if (!selectedMonth || !selectedYear) {
+      toast.error("Please select month and year");
+      return;
+    }
+
+    const result = await checkLeavesMutation.refetch();
     
+    if (result.data?.allRecorded) {
+      setShowLeaveWarning(false);
+      setMissingEmployees([]);
+      handleGenerate();
+    } else {
+      setShowLeaveWarning(true);
+      setMissingEmployees(result.data?.missingEmployees || []);
+    }
+  };
+
+  const handleGenerate = () => {
     generateMutation.mutate({
       month: parseInt(selectedMonth),
       year: parseInt(selectedYear),
     });
+  };
+
+  const handleDownload = (payslipId: number) => {
+    downloadMutation.mutate({ payslipId });
   };
 
   const months = [
@@ -112,11 +172,14 @@ export default function Payroll() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Generate Payslips</DialogTitle>
+                <DialogDescription>
+                  Select the month and year to generate payslips for all active employees
+                </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleGenerate} className="space-y-4">
+              <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="month">Month *</Label>
-                  <Select value={selectedMonth} onValueChange={setSelectedMonth} required>
+                  <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select month" />
                     </SelectTrigger>
@@ -132,7 +195,7 @@ export default function Payroll() {
 
                 <div className="space-y-2">
                   <Label htmlFor="year">Year *</Label>
-                  <Select value={selectedYear} onValueChange={setSelectedYear} required>
+                  <Select value={selectedYear} onValueChange={setSelectedYear}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select year" />
                     </SelectTrigger>
@@ -146,6 +209,23 @@ export default function Payroll() {
                   </Select>
                 </div>
 
+                {showLeaveWarning && (
+                  <Alert className="border-[rgb(var(--tangerine))] bg-[rgb(var(--tangerine))]/10">
+                    <AlertTriangle className="h-4 w-4 text-[rgb(var(--tangerine))]" />
+                    <AlertDescription className="text-sm">
+                      <p className="font-semibold mb-2">Leave records missing for:</p>
+                      <ul className="list-disc list-inside space-y-1">
+                        {missingEmployees.map((name, idx) => (
+                          <li key={idx}>{name}</li>
+                        ))}
+                      </ul>
+                      <p className="mt-3 text-xs">
+                        Please record leaves for these employees before generating payslips, or continue to generate with zero leaves.
+                      </p>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="bg-muted/50 p-4 rounded-lg text-sm">
                   <p className="text-muted-foreground">
                     This will generate payslips for all active employees for the selected period.
@@ -157,11 +237,24 @@ export default function Payroll() {
                   <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={generateMutation.isPending}>
-                    {generateMutation.isPending ? "Generating..." : "Generate"}
-                  </Button>
+                  {showLeaveWarning ? (
+                    <Button 
+                      onClick={handleGenerate}
+                      disabled={generateMutation.isPending}
+                      variant="destructive"
+                    >
+                      {generateMutation.isPending ? "Generating..." : "Continue Anyway"}
+                    </Button>
+                  ) : (
+                    <Button 
+                      onClick={handleCheckLeaves}
+                      disabled={generateMutation.isPending || checkLeavesMutation.isFetching}
+                    >
+                      {checkLeavesMutation.isFetching ? "Checking..." : "Generate"}
+                    </Button>
+                  )}
                 </div>
-              </form>
+              </div>
             </DialogContent>
           </Dialog>
         </div>
@@ -266,9 +359,14 @@ export default function Payroll() {
                               </div>
                             </div>
 
-                            <Button variant="outline" className="w-full" disabled>
+                            <Button 
+                              variant="outline" 
+                              className="w-full"
+                              onClick={() => handleDownload(payslip.id)}
+                              disabled={downloadMutation.isPending}
+                            >
                               <Download className="h-4 w-4 mr-2" />
-                              Download PDF
+                              {downloadMutation.isPending ? "Downloading..." : "Download PDF"}
                             </Button>
                           </div>
                         </div>
