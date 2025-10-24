@@ -7,29 +7,18 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, AlertTriangle, CheckCircle2, Save } from "lucide-react";
 import { toast } from "sonner";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Leaves() {
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
   const [leaveInputs, setLeaveInputs] = useState<Record<number, string>>({});
-  const [saving, setSaving] = useState<Record<number, boolean>>({});
+  const [saving, setSaving] = useState(false);
 
   const utils = trpc.useUtils();
   const { data: employees, isLoading: loadingEmployees } = trpc.employees.active.useQuery();
   const { data: settings } = trpc.settings.get.useQuery();
 
-  const createOrUpdateMutation = trpc.leaves.createOrUpdate.useMutation({
-    onSuccess: (_, variables) => {
-      setSaving(prev => ({ ...prev, [variables.employeeId]: false }));
-      toast.success("Leave record saved");
-      utils.leaves.getByEmployee.invalidate({ employeeId: variables.employeeId });
-    },
-    onError: (_, variables) => {
-      setSaving(prev => ({ ...prev, [variables.employeeId]: false }));
-      toast.error("Failed to save leave record");
-    },
-  });
+  const createOrUpdateMutation = trpc.leaves.createOrUpdate.useMutation();
 
   const months = [
     { value: "1", label: "January" },
@@ -60,36 +49,59 @@ export default function Leaves() {
     setLeaveInputs(prev => ({ ...prev, [employeeId]: value }));
   };
 
-  const handleSave = (employeeId: number) => {
+  const handleSaveAll = async () => {
     if (!selectedMonth || !selectedYear) {
       toast.error("Please select month and year");
       return;
     }
 
-    const leaveValue = leaveInputs[employeeId];
-    if (leaveValue === undefined || leaveValue === "") {
-      toast.error("Please enter number of leaves");
+    if (!employees || employees.length === 0) {
+      toast.error("No employees to save");
       return;
     }
 
-    const leavesTaken = parseInt(leaveValue);
-    if (isNaN(leavesTaken) || leavesTaken < 0) {
-      toast.error("Please enter a valid number");
-      return;
-    }
+    setSaving(true);
+    let successCount = 0;
+    let errorCount = 0;
 
-    setSaving(prev => ({ ...prev, [employeeId]: true }));
-    createOrUpdateMutation.mutate({
-      employeeId,
-      month: parseInt(selectedMonth),
-      year: parseInt(selectedYear),
-      leavesTaken,
-    });
+    try {
+      for (const employee of employees) {
+        const leaveValue = leaveInputs[employee.id] || "0";
+        const leavesTaken = parseInt(leaveValue);
+
+        if (isNaN(leavesTaken) || leavesTaken < 0) {
+          errorCount++;
+          continue;
+        }
+
+        try {
+          await createOrUpdateMutation.mutateAsync({
+            employeeId: employee.id,
+            month: parseInt(selectedMonth),
+            year: parseInt(selectedYear),
+            leavesTaken,
+          });
+          successCount++;
+        } catch {
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Saved ${successCount} leave record(s) successfully`);
+        utils.leaves.getByEmployee.invalidate();
+      }
+      if (errorCount > 0) {
+        toast.error(`Failed to save ${errorCount} record(s)`);
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const getExcessLeaves = (employeeId: number): number => {
-    const leaveValue = leaveInputs[employeeId];
-    if (!leaveValue || !settings) return 0;
+    const leaveValue = leaveInputs[employeeId] || "0";
+    if (!settings) return 0;
     
     const leavesTaken = parseInt(leaveValue);
     if (isNaN(leavesTaken)) return 0;
@@ -101,14 +113,33 @@ export default function Leaves() {
     return getExcessLeaves(employeeId) > 0;
   };
 
+  const hasAnyExceeding = employees?.some(emp => isExceeding(emp.id)) || false;
+
   return (
     <DashboardLayout>
       <div className="container py-8 space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Leave Management</h1>
-          <p className="text-muted-foreground mt-1">
-            Record monthly leaves for all employees
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Leave Management</h1>
+            <p className="text-muted-foreground mt-1">
+              Record monthly leaves for all employees
+            </p>
+          </div>
+          <Button
+            onClick={handleSaveAll}
+            disabled={saving || !employees || employees.length === 0}
+            size="lg"
+            className="bg-[rgb(var(--tea))] hover:bg-[rgb(var(--tea))]/90 text-white"
+          >
+            {saving ? (
+              "Saving..."
+            ) : (
+              <>
+                <Save className="h-5 w-5 mr-2" />
+                Save All
+              </>
+            )}
+          </Button>
         </div>
 
         {/* Period Selection */}
@@ -161,100 +192,108 @@ export default function Leaves() {
           </div>
         </div>
 
-        {/* Employee List */}
-        {loadingEmployees ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="bento-card animate-pulse">
-                <div className="h-16 bg-muted rounded" />
+        {/* Warning if any exceeding */}
+        {hasAnyExceeding && (
+          <div className="bento-card border-[rgb(var(--tangerine))]/50 bg-[rgb(var(--tangerine))]/10">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-[rgb(var(--tangerine))] shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-[rgb(var(--tangerine))]">
+                  Some employees exceed leave quota
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Employees marked in orange will have salary deductions applied during payroll generation.
+                </p>
               </div>
-            ))}
+            </div>
+          </div>
+        )}
+
+        {/* CSV-like Table */}
+        {loadingEmployees ? (
+          <div className="bento-card animate-pulse">
+            <div className="h-64 bg-muted rounded" />
           </div>
         ) : employees && employees.length > 0 ? (
-          <div className="space-y-3">
-            {employees.map((employee) => (
-              <div 
-                key={employee.id} 
-                className={`bento-card transition-all ${
-                  isExceeding(employee.id) 
-                    ? 'border-[rgb(var(--tangerine))]/50 bg-[rgb(var(--tangerine))]/5' 
-                    : 'hover:shadow-md'
-                }`}
-              >
-                <div className="flex flex-col md:flex-row md:items-center gap-4">
-                  {/* Employee Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-lg">{employee.name}</h3>
-                    <p className="text-sm text-muted-foreground">{employee.designation}</p>
-                  </div>
-
-                  {/* Leave Input */}
-                  <div className="flex items-center gap-3 md:w-auto">
-                    <div className="space-y-1">
-                      <Label htmlFor={`leave-${employee.id}`} className="text-xs text-muted-foreground">
-                        Leaves Taken
-                      </Label>
-                      <Input
-                        id={`leave-${employee.id}`}
-                        type="number"
-                        min="0"
-                        placeholder="0"
-                        value={leaveInputs[employee.id] || ""}
-                        onChange={(e) => handleLeaveChange(employee.id, e.target.value)}
-                        className="w-24 text-center"
-                      />
-                    </div>
-
-                    <Button
-                      onClick={() => handleSave(employee.id)}
-                      disabled={saving[employee.id]}
-                      size="sm"
-                      className="mt-5 bg-[rgb(var(--tea))] hover:bg-[rgb(var(--tea))]/90 text-white"
+          <div className="bento-card overflow-hidden p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="text-left p-4 font-semibold">Employee Name</th>
+                    <th className="text-left p-4 font-semibold">Designation</th>
+                    <th className="text-center p-4 font-semibold w-32">Leaves Taken</th>
+                    <th className="text-center p-4 font-semibold w-32">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.map((employee, index) => (
+                    <tr 
+                      key={employee.id}
+                      className={`border-b border-border last:border-0 transition-colors ${
+                        isExceeding(employee.id) 
+                          ? 'bg-[rgb(var(--tangerine))]/5' 
+                          : 'hover:bg-muted/30'
+                      }`}
                     >
-                      {saving[employee.id] ? (
-                        "Saving..."
-                      ) : (
-                        <>
-                          <Save className="h-4 w-4 mr-1" />
-                          Save
-                        </>
-                      )}
-                    </Button>
-                  </div>
-
-                  {/* Warning/Success Indicator */}
-                  <div className="md:w-64">
-                    {leaveInputs[employee.id] !== undefined && leaveInputs[employee.id] !== "" && (
-                      <>
-                        {isExceeding(employee.id) ? (
-                          <Alert className="border-[rgb(var(--tangerine))] bg-[rgb(var(--tangerine))]/10 py-2">
-                            <AlertTriangle className="h-4 w-4 text-[rgb(var(--tangerine))]" />
-                            <AlertDescription className="text-xs">
-                              <span className="font-semibold">Exceeds quota by {getExcessLeaves(employee.id)} day(s)</span>
-                              <br />
-                              <span className="text-muted-foreground">
-                                Salary deduction will apply
-                              </span>
-                            </AlertDescription>
-                          </Alert>
-                        ) : (
-                          <Alert className="border-[rgb(var(--tea))] bg-[rgb(var(--tea))]/10 py-2">
-                            <CheckCircle2 className="h-4 w-4 text-[rgb(var(--tea))]" />
-                            <AlertDescription className="text-xs">
-                              <span className="font-semibold">Within quota</span>
-                              <br />
-                              <span className="text-muted-foreground">
-                                No deduction
-                              </span>
-                            </AlertDescription>
-                          </Alert>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+                      <td className="p-4">
+                        <div className="font-medium">{employee.name}</div>
+                      </td>
+                      <td className="p-4">
+                        <div className="text-sm text-muted-foreground">{employee.designation}</div>
+                      </td>
+                      <td className="p-4">
+                        <Input
+                          type="number"
+                          min="0"
+                          placeholder="0"
+                          value={leaveInputs[employee.id] || ""}
+                          onChange={(e) => handleLeaveChange(employee.id, e.target.value)}
+                          className={`text-center w-20 mx-auto ${
+                            isExceeding(employee.id) 
+                              ? 'border-[rgb(var(--tangerine))] bg-[rgb(var(--tangerine))]/5' 
+                              : ''
+                          }`}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              // Move to next input
+                              const nextIndex = index + 1;
+                              if (nextIndex < employees.length) {
+                                const nextInput = document.querySelector(
+                                  `input[type="number"]:nth-of-type(${nextIndex + 1})`
+                                ) as HTMLInputElement;
+                                nextInput?.focus();
+                              }
+                            }
+                          }}
+                        />
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center justify-center">
+                          {leaveInputs[employee.id] !== undefined && leaveInputs[employee.id] !== "" ? (
+                            isExceeding(employee.id) ? (
+                              <div className="flex items-center gap-1 text-[rgb(var(--tangerine))]">
+                                <AlertTriangle className="h-4 w-4" />
+                                <span className="text-xs font-medium">
+                                  +{getExcessLeaves(employee.id)}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 text-[rgb(var(--tea))]">
+                                <CheckCircle2 className="h-4 w-4" />
+                                <span className="text-xs font-medium">OK</span>
+                              </div>
+                            )
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
           <div className="bento-card text-center py-12">
@@ -268,12 +307,13 @@ export default function Leaves() {
         {/* Info Card */}
         {employees && employees.length > 0 && (
           <div className="bento-card bg-[rgb(var(--sky))]/10 border-[rgb(var(--sky))]/20">
-            <h3 className="font-semibold mb-2">How it works</h3>
+            <h3 className="font-semibold mb-2">Quick Tips</h3>
             <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• Enter the number of leaves taken by each employee for the selected month</li>
-              <li>• Leaves exceeding the monthly quota ({settings?.leaveQuotaPerMonth || 0} days) will trigger salary deductions</li>
-              <li>• Save each employee's record individually</li>
-              <li>• Ensure all leave records are up to date before generating payroll</li>
+              <li>• Enter leave numbers directly in the table (like a spreadsheet)</li>
+              <li>• Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">Enter</kbd> to move to the next employee</li>
+              <li>• Leaves exceeding quota ({settings?.leaveQuotaPerMonth || 0} days) are highlighted in orange</li>
+              <li>• Click "Save All" to save all records at once</li>
+              <li>• Empty fields will be saved as 0 leaves</li>
             </ul>
           </div>
         )}
