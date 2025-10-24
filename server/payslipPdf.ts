@@ -196,9 +196,7 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
 
   // Earnings rows
   const earnings = [
-    { label: "Basic Payment", amount: data.salary.basic },
-    { label: "HRA", amount: data.salary.hra },
-    { label: "Other Allowances", amount: data.salary.otherAllowances },
+    { label: "Gross Payment", amount: data.salary.gross },
   ];
 
   const deductions = [

@@ -166,12 +166,12 @@ export default function Payroll() {
             <DialogTrigger asChild>
               <Button>
                 <FileText className="h-4 w-4 mr-2" />
-                Generate Payslips
+                Generate Payment Advice
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Generate Payslips</DialogTitle>
+                <DialogTitle>Generate Payment Advice</DialogTitle>
                 <DialogDescription>
                   Select the month and year to generate payslips for all active employees
                 </DialogDescription>

@@ -142,7 +142,7 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="bento-card hover:border-[rgb(var(--mustard))]/50 cursor-pointer transition-all">
-            <h3 className="font-semibold text-lg mb-2">Generate Payslips</h3>
+            <h3 className="font-semibold text-lg mb-2">Generate Payment Advice</h3>
             <p className="text-sm text-muted-foreground">
               Create monthly payslips for all employees
             </p>
