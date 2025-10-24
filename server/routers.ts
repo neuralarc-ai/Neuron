@@ -126,17 +126,51 @@ export const appRouter = router({
           throw new Error("Employee not found");
         }
 
-        const pdfBuffer = generatePayslipPDF({
-          employeeName: employee.name,
-          employeeEmail: employee.email,
-          designation: employee.designation,
-          month: payslip.month,
-          year: payslip.year,
-          grossSalary: payslip.grossSalary,
-          tds: payslip.tds,
-          deductions: payslip.deductions,
-          netSalary: payslip.netSalary,
-          generatedDate: payslip.createdAt,
+        const settings = await db.getSettings();
+        if (!settings) {
+          throw new Error("Settings not configured");
+        }
+
+        const leave = await db.getLeavesByMonth(employee.id, payslip.month, payslip.year);
+        const leavesTaken = leave?.leavesTaken || 0;
+        const excessLeaves = Math.max(0, leavesTaken - settings.leaveQuotaPerMonth);
+
+        // Calculate salary breakdown
+        const basic = Math.floor(payslip.grossSalary * 0.5);
+        const hra = Math.floor(payslip.grossSalary * 0.3);
+        const otherAllowances = payslip.grossSalary - basic - hra;
+
+        const monthNames = ["January", "February", "March", "April", "May", "June",
+          "July", "August", "September", "October", "November", "December"];
+
+        const pdfBuffer = await generatePayslipPDF({
+          employee: {
+            name: employee.name,
+            designation: employee.designation,
+            employeeId: employee.id.toString(),
+          },
+          period: {
+            month: monthNames[payslip.month - 1],
+            year: payslip.year,
+          },
+          salary: {
+            basic,
+            hra,
+            otherAllowances,
+            gross: payslip.grossSalary,
+            tds: payslip.tds,
+            leaveDeduction: payslip.deductions,
+            netSalary: payslip.netSalary,
+          },
+          leaves: {
+            taken: leavesTaken,
+            quota: settings.leaveQuotaPerMonth,
+            excess: excessLeaves,
+          },
+          settings: {
+            workingDays: settings.workingDaysPerMonth,
+            tdsRate: settings.tdsRate,
+          },
         });
 
         // Convert buffer to base64 for transmission

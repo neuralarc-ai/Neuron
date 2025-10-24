@@ -1,252 +1,44 @@
 import { jsPDF } from "jspdf";
-import { readFileSync } from "fs";
-import { join } from "path";
+import path from "path";
+import fs from "fs";
 
 interface PayslipData {
-  employeeName: string;
-  employeeEmail: string;
-  designation: string;
-  month: number;
-  year: number;
-  grossSalary: number;
-  tds: number;
-  deductions: number;
-  netSalary: number;
-  generatedDate: Date;
-}
-
-const monthNames = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
-];
-
-export function generatePayslipPDF(data: PayslipData): Buffer {
-  const doc = new jsPDF();
-  
-  // Colors from brand palette
-  const lavander: [number, number, number] = [128, 139, 197];
-  const tea: [number, number, number] = [36, 94, 85];
-  const seashell: [number, number, number] = [234, 228, 218];
-  const mutedBlack: [number, number, number] = [29, 29, 27];
-  const sky: [number, number, number] = [158, 214, 223];
-  
-  // Header with gradient effect
-  doc.setFillColor(...lavander);
-  doc.rect(0, 0, 210, 50, 'F');
-  
-  // Add decorative accent
-  doc.setFillColor(...sky);
-  doc.rect(0, 48, 210, 2, 'F');
-  
-  // Try to load and add NeuralArc logo
-  try {
-    const logoPath = join(process.cwd(), 'client/public/neuralarc-logo.png');
-    const logoData = readFileSync(logoPath);
-    const logoBase64 = `data:image/png;base64,${logoData.toString('base64')}`;
-    doc.addImage(logoBase64, 'PNG', 15, 10, 60, 15);
-  } catch (error) {
-    // If logo fails to load, show company name
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(18);
-    doc.setFont("helvetica", "bold");
-    doc.text("NeuralArc", 15, 20);
-  }
-  
-  // Company details on the right
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.text("Neural Arc Inc", 195, 15, { align: "right" });
-  doc.text("neuralarc.ai", 195, 20, { align: "right" });
-  doc.setFontSize(7);
-  doc.text("India Office: AMPVC Consulting LLP,", 195, 28, { align: "right" });
-  doc.text("Trimurti HoneyGold, Range Hills Road,", 195, 32, { align: "right" });
-  doc.text("Pune 411 007", 195, 36, { align: "right" });
-  
-  // Payslip title
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text("PAYSLIP", 195, 44, { align: "right" });
-  
-  // Reset text color
-  doc.setTextColor(...mutedBlack);
-  
-  // Payslip period with decorative box
-  doc.setFillColor(...seashell);
-  doc.roundedRect(15, 58, 180, 14, 3, 3, 'F');
-  
-  doc.setFontSize(14);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...tea);
-  doc.text(`${monthNames[data.month - 1]} ${data.year}`, 105, 67, { align: "center" });
-  
-  // Employee details section
-  doc.setTextColor(...mutedBlack);
-  doc.setFillColor(...lavander);
-  doc.setDrawColor(...lavander);
-  
-  const detailsY = 80;
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text("Employee Information", 15, detailsY);
-  
-  // Decorative line
-  doc.setLineWidth(0.5);
-  doc.line(15, detailsY + 2, 195, detailsY + 2);
-  
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  
-  const infoY = detailsY + 10;
-  const col1X = 15;
-  const col2X = 70;
-  const lineHeight = 7;
-  
-  // Left column
-  doc.setFont("helvetica", "bold");
-  doc.text("Employee Name:", col1X, infoY);
-  doc.setFont("helvetica", "normal");
-  doc.text(data.employeeName, col2X, infoY);
-  
-  doc.setFont("helvetica", "bold");
-  doc.text("Email:", col1X, infoY + lineHeight);
-  doc.setFont("helvetica", "normal");
-  doc.text(data.employeeEmail, col2X, infoY + lineHeight);
-  
-  doc.setFont("helvetica", "bold");
-  doc.text("Designation:", col1X, infoY + lineHeight * 2);
-  doc.setFont("helvetica", "normal");
-  doc.text(data.designation, col2X, infoY + lineHeight * 2);
-  
-  // Salary breakdown section
-  const breakdownY = 125;
-  
-  // Section header
-  doc.setFillColor(...lavander);
-  doc.roundedRect(15, breakdownY, 180, 10, 2, 2, 'F');
-  
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(255, 255, 255);
-  doc.text("Salary Breakdown", 20, breakdownY + 7);
-  
-  // Table
-  const tableY = breakdownY + 18;
-  doc.setTextColor(...mutedBlack);
-  doc.setFontSize(10);
-  
-  // Table borders
-  doc.setDrawColor(...lavander);
-  doc.setLineWidth(0.3);
-  
-  let currentY = tableY;
-  
-  // Earnings section
-  doc.setFillColor(...seashell);
-  doc.rect(15, currentY, 180, 8, 'FD');
-  doc.setFont("helvetica", "bold");
-  doc.text("Earnings", 20, currentY + 5.5);
-  currentY += 8;
-  
-  // Gross Salary
-  doc.setFont("helvetica", "normal");
-  doc.rect(15, currentY, 130, 8, 'D');
-  doc.rect(145, currentY, 50, 8, 'D');
-  doc.text("Gross Salary", 20, currentY + 5.5);
-  doc.text(formatCurrency(data.grossSalary), 190, currentY + 5.5, { align: "right" });
-  currentY += 8;
-  
-  // Deductions section
-  doc.setFillColor(...seashell);
-  doc.rect(15, currentY, 180, 8, 'FD');
-  doc.setFont("helvetica", "bold");
-  doc.text("Deductions", 20, currentY + 5.5);
-  currentY += 8;
-  
-  // TDS
-  doc.setFont("helvetica", "normal");
-  doc.rect(15, currentY, 130, 8, 'D');
-  doc.rect(145, currentY, 50, 8, 'D');
-  doc.text("TDS (10%)", 20, currentY + 5.5);
-  doc.setTextColor(237, 119, 60); // Tangerine
-  doc.text(`- ${formatCurrency(data.tds)}`, 190, currentY + 5.5, { align: "right" });
-  currentY += 8;
-  
-  // Leave deductions (if any)
-  if (data.deductions > 0) {
-    doc.setTextColor(...mutedBlack);
-    doc.rect(15, currentY, 130, 8, 'D');
-    doc.rect(145, currentY, 50, 8, 'D');
-    doc.text("Leave Deductions", 20, currentY + 5.5);
-    doc.setTextColor(198, 63, 62); // Red Passion
-    doc.text(`- ${formatCurrency(data.deductions)}`, 190, currentY + 5.5, { align: "right" });
-    currentY += 8;
-  }
-  
-  // Total deductions
-  doc.setTextColor(...mutedBlack);
-  doc.setFont("helvetica", "bold");
-  doc.rect(15, currentY, 130, 8, 'D');
-  doc.rect(145, currentY, 50, 8, 'D');
-  doc.text("Total Deductions", 20, currentY + 5.5);
-  doc.setTextColor(198, 63, 62);
-  doc.text(`- ${formatCurrency(data.tds + data.deductions)}`, 190, currentY + 5.5, { align: "right" });
-  currentY += 8;
-  
-  // Net Salary - highlighted
-  currentY += 3;
-  doc.setFillColor(...tea);
-  doc.roundedRect(15, currentY, 180, 12, 2, 2, 'F');
-  
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(12);
-  doc.setFont("helvetica", "bold");
-  doc.text("Net Salary", 20, currentY + 8);
-  doc.text(formatCurrency(data.netSalary), 190, currentY + 8, { align: "right" });
-  
-  // Net salary in words
-  currentY += 18;
-  doc.setTextColor(...mutedBlack);
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "italic");
-  doc.text(`Amount in words: ${numberToWords(data.netSalary)} Rupees Only`, 15, currentY);
-  
-  // Decorative footer
-  const footerY = 270;
-  doc.setDrawColor(...lavander);
-  doc.setLineWidth(0.5);
-  doc.line(15, footerY - 5, 195, footerY - 5);
-  
-  doc.setTextColor(100, 100, 100);
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "italic");
-  doc.text("This is a computer-generated payslip and does not require a signature.", 105, footerY, { align: "center" });
-  doc.text(`Generated on: ${new Date(data.generatedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}`, 105, footerY + 5, { align: "center" });
-  
-  // Decorative corner accent
-  doc.setFillColor(...sky);
-  doc.circle(200, 285, 15, 'F');
-  
-  // Convert to buffer
-  const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
-  return pdfBuffer;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount);
+  employee: {
+    name: string;
+    designation: string;
+    employeeId: string;
+  };
+  period: {
+    month: string;
+    year: number;
+  };
+  salary: {
+    basic: number;
+    hra: number;
+    otherAllowances: number;
+    gross: number;
+    tds: number;
+    leaveDeduction: number;
+    netSalary: number;
+  };
+  leaves: {
+    taken: number;
+    quota: number;
+    excess: number;
+  };
+  settings: {
+    workingDays: number;
+    tdsRate: number;
+  };
 }
 
 function numberToWords(num: number): string {
   if (num === 0) return "Zero";
-  
+
   const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
   const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
   const teens = ["Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
-  
+
   function convertLessThanThousand(n: number): string {
     if (n === 0) return "";
     if (n < 10) return ones[n];
@@ -254,19 +46,222 @@ function numberToWords(num: number): string {
     if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + ones[n % 10] : "");
     return ones[Math.floor(n / 100)] + " Hundred" + (n % 100 !== 0 ? " " + convertLessThanThousand(n % 100) : "");
   }
+
+  function convert(n: number): string {
+    if (n === 0) return "Zero";
+    
+    const crore = Math.floor(n / 10000000);
+    const lakh = Math.floor((n % 10000000) / 100000);
+    const thousand = Math.floor((n % 100000) / 1000);
+    const remainder = n % 1000;
+
+    let result = "";
+    if (crore > 0) result += convertLessThanThousand(crore) + " Crore ";
+    if (lakh > 0) result += convertLessThanThousand(lakh) + " Lakh ";
+    if (thousand > 0) result += convertLessThanThousand(thousand) + " Thousand ";
+    if (remainder > 0) result += convertLessThanThousand(remainder);
+
+    return result.trim();
+  }
+
+  const rupees = Math.floor(num);
+  const paise = Math.round((num - rupees) * 100);
+
+  let result = convert(rupees) + " Rupees";
+  if (paise > 0) {
+    result += " and " + convert(paise) + " Paise";
+  }
+  return result + " Only";
+}
+
+export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
+  // A5 landscape dimensions (half of A4): 210mm x 148mm
+  const doc = new jsPDF({
+    orientation: "landscape",
+    unit: "mm",
+    format: "a5"
+  });
+
+  const pageWidth = 210;
+  const pageHeight = 148;
+  const margin = 12;
+  const contentWidth = pageWidth - (margin * 2);
+
+  // Load NeuralArc logo
+  const logoPath = path.join(process.cwd(), "client/public/neuralarc-logo.png");
+  let logoData = "";
+  if (fs.existsSync(logoPath)) {
+    logoData = fs.readFileSync(logoPath, { encoding: "base64" });
+  }
+
+  let y = margin;
+
+  // Header with logo and company info
+  if (logoData) {
+    doc.addImage(`data:image/png;base64,${logoData}`, "PNG", margin, y, 35, 8);
+  }
   
-  const crore = Math.floor(num / 10000000);
-  const lakh = Math.floor((num % 10000000) / 100000);
-  const thousand = Math.floor((num % 100000) / 1000);
-  const remainder = num % 1000;
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "normal");
+  doc.text("Neural Arc Inc", pageWidth - margin, y + 2, { align: "right" });
+  doc.text("neuralarc.ai", pageWidth - margin, y + 5, { align: "right" });
+  doc.setFontSize(6);
+  doc.text("India Office: AMPVC Consulting LLP, Trimurti HoneyGold,", pageWidth - margin, y + 8.5, { align: "right" });
+  doc.text("Range Hills Road, Pune 411 007", pageWidth - margin, y + 11.5, { align: "right" });
+
+  y += 18;
+
+  // Large PAYSLIP heading
+  doc.setFontSize(28);
+  doc.setFont("helvetica", "bold");
+  doc.text("PAYSLIP", pageWidth / 2, y, { align: "center" });
+
+  y += 10;
+
+  // Highlighted salary period
+  doc.setFillColor(0, 0, 0);
+  doc.rect(margin, y, contentWidth, 10, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text(`Salary for ${data.period.month} ${data.period.year}`, pageWidth / 2, y + 6.5, { align: "center" });
+  doc.setTextColor(0, 0, 0);
+
+  y += 14;
+
+  // Employee details box
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.3);
+  doc.rect(margin, y, contentWidth, 16);
   
-  let result = "";
+  // Vertical divider
+  doc.line(pageWidth / 2, y, pageWidth / 2, y + 16);
+
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "bold");
+  doc.text("Employee Name:", margin + 3, y + 5);
+  doc.text("Designation:", margin + 3, y + 10);
+  doc.text("Employee ID:", margin + 3, y + 15);
+
+  doc.setFont("helvetica", "normal");
+  doc.text(data.employee.name, margin + 35, y + 5);
+  doc.text(data.employee.designation, margin + 35, y + 10);
+  doc.text(data.employee.employeeId, margin + 35, y + 15);
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Working Days:", pageWidth / 2 + 3, y + 5);
+  doc.text("Leaves Taken:", pageWidth / 2 + 3, y + 10);
+  doc.text("Excess Leaves:", pageWidth / 2 + 3, y + 15);
+
+  doc.setFont("helvetica", "normal");
+  doc.text(data.settings.workingDays.toString(), pageWidth / 2 + 35, y + 5);
+  doc.text(`${data.leaves.taken} / ${data.leaves.quota}`, pageWidth / 2 + 35, y + 10);
+  doc.text(data.leaves.excess > 0 ? data.leaves.excess.toString() : "-", pageWidth / 2 + 35, y + 15);
+
+  y += 20;
+
+  // Earnings and Deductions table
+  const tableY = y;
+  const colWidth = contentWidth / 2;
+
+  // Table headers
+  doc.setFillColor(240, 240, 240);
+  doc.rect(margin, tableY, colWidth, 8, "F");
+  doc.rect(margin + colWidth, tableY, colWidth, 8, "F");
   
-  if (crore > 0) result += convertLessThanThousand(crore) + " Crore ";
-  if (lakh > 0) result += convertLessThanThousand(lakh) + " Lakh ";
-  if (thousand > 0) result += convertLessThanThousand(thousand) + " Thousand ";
-  if (remainder > 0) result += convertLessThanThousand(remainder);
-  
-  return result.trim();
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text("EARNINGS", margin + 3, tableY + 5.5);
+  doc.text("DEDUCTIONS", margin + colWidth + 3, tableY + 5.5);
+
+  // Table borders
+  doc.rect(margin, tableY, colWidth, 8);
+  doc.rect(margin + colWidth, tableY, colWidth, 8);
+
+  y = tableY + 8;
+
+  // Earnings rows
+  const earnings = [
+    { label: "Basic Salary", amount: data.salary.basic },
+    { label: "HRA", amount: data.salary.hra },
+    { label: "Other Allowances", amount: data.salary.otherAllowances },
+  ];
+
+  const deductions = [
+    { label: "TDS", amount: data.salary.tds },
+    { label: "Leave Deduction", amount: data.salary.leaveDeduction },
+  ];
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+
+  const rowHeight = 6;
+  const maxRows = Math.max(earnings.length, deductions.length);
+
+  for (let i = 0; i < maxRows; i++) {
+    // Earnings
+    if (i < earnings.length) {
+      doc.rect(margin, y, colWidth, rowHeight);
+      doc.text(earnings[i].label, margin + 3, y + 4);
+      doc.text(`₹ ${earnings[i].amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, margin + colWidth - 3, y + 4, { align: "right" });
+    }
+
+    // Deductions
+    if (i < deductions.length) {
+      doc.rect(margin + colWidth, y, colWidth, rowHeight);
+      doc.text(deductions[i].label, margin + colWidth + 3, y + 4);
+      doc.text(`₹ ${deductions[i].amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin - 3, y + 4, { align: "right" });
+    }
+
+    y += rowHeight;
+  }
+
+  // Totals row
+  doc.setFillColor(240, 240, 240);
+  doc.rect(margin, y, colWidth, 7, "F");
+  doc.rect(margin + colWidth, y, colWidth, 7, "F");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text("GROSS SALARY", margin + 3, y + 4.5);
+  doc.text(`₹ ${data.salary.gross.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, margin + colWidth - 3, y + 4.5, { align: "right" });
+
+  const totalDeductions = data.salary.tds + data.salary.leaveDeduction;
+  doc.text("TOTAL DEDUCTIONS", margin + colWidth + 3, y + 4.5);
+  doc.text(`₹ ${totalDeductions.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin - 3, y + 4.5, { align: "right" });
+
+  doc.rect(margin, y, colWidth, 7);
+  doc.rect(margin + colWidth, y, colWidth, 7);
+
+  y += 10;
+
+  // Net Salary box
+  doc.setFillColor(0, 0, 0);
+  doc.rect(margin, y, contentWidth, 10, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  doc.text("NET SALARY", margin + 3, y + 6.5);
+  doc.text(`₹ ${data.salary.netSalary.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin - 3, y + 6.5, { align: "right" });
+  doc.setTextColor(0, 0, 0);
+
+  y += 13;
+
+  // Amount in words
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "bold");
+  doc.text("Amount in Words:", margin, y);
+  doc.setFont("helvetica", "normal");
+  const amountWords = numberToWords(data.salary.netSalary);
+  doc.text(amountWords, margin, y + 4, { maxWidth: contentWidth });
+
+  // Footer
+  y = pageHeight - 12;
+  doc.setFontSize(6);
+  doc.setFont("helvetica", "italic");
+  doc.text("This is a computer-generated payslip and does not require a signature.", pageWidth / 2, y, { align: "center" });
+  doc.text(`Generated on ${new Date().toLocaleDateString('en-IN')}`, pageWidth / 2, y + 3, { align: "center" });
+
+  return Buffer.from(doc.output("arraybuffer"));
 }
 
