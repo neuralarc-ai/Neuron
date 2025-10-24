@@ -74,6 +74,10 @@ function numberToWords(num: number): string {
   return result + " Only";
 }
 
+function formatCurrency(amount: number): string {
+  return amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
   // A5 landscape dimensions (half of A4): 210mm x 148mm
   const doc = new jsPDF({
@@ -203,14 +207,14 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
     if (i < earnings.length) {
       doc.rect(margin, y, colWidth, rowHeight);
       doc.text(earnings[i].label, margin + 3, y + 4);
-      doc.text(`₹ ${earnings[i].amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, margin + colWidth - 3, y + 4, { align: "right" });
+      doc.text(formatCurrency(earnings[i].amount), margin + colWidth - 3, y + 4, { align: "right" });
     }
 
     // Deductions
     if (i < deductions.length) {
       doc.rect(margin + colWidth, y, colWidth, rowHeight);
       doc.text(deductions[i].label, margin + colWidth + 3, y + 4);
-      doc.text(`₹ ${deductions[i].amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin - 3, y + 4, { align: "right" });
+      doc.text(formatCurrency(deductions[i].amount), pageWidth - margin - 3, y + 4, { align: "right" });
     }
 
     y += rowHeight;
@@ -224,11 +228,11 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.text("GROSS SALARY", margin + 3, y + 4.5);
-  doc.text(`₹ ${data.salary.gross.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, margin + colWidth - 3, y + 4.5, { align: "right" });
+  doc.text(formatCurrency(data.salary.gross), margin + colWidth - 3, y + 4.5, { align: "right" });
 
   const totalDeductions = data.salary.tds + data.salary.leaveDeduction;
   doc.text("TOTAL DEDUCTIONS", margin + colWidth + 3, y + 4.5);
-  doc.text(`₹ ${totalDeductions.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin - 3, y + 4.5, { align: "right" });
+  doc.text(formatCurrency(totalDeductions), pageWidth - margin - 3, y + 4.5, { align: "right" });
 
   doc.rect(margin, y, colWidth, 7);
   doc.rect(margin + colWidth, y, colWidth, 7);
@@ -242,7 +246,7 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
   doc.text("NET SALARY", margin + 3, y + 6.5);
-  doc.text(`₹ ${data.salary.netSalary.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin - 3, y + 6.5, { align: "right" });
+  doc.text(formatCurrency(data.salary.netSalary), pageWidth - margin - 3, y + 6.5, { align: "right" });
   doc.setTextColor(0, 0, 0);
 
   y += 13;
