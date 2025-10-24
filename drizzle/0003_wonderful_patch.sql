@@ -1,0 +1,1 @@
+ALTER TABLE `employees` ADD `agreementRefId` varchar(100);

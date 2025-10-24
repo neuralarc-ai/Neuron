@@ -45,6 +45,7 @@ export const employees = mysqlTable("employees", {
   address: text("address"),
   joiningDate: timestamp("joiningDate").notNull(),
   designation: varchar("designation", { length: 255 }).notNull(),
+  agreementRefId: varchar("agreementRefId", { length: 100 }),
   salary: int("salary").notNull(), // Store as integer (in paise/cents)
   status: mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

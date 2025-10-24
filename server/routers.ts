@@ -233,6 +233,7 @@ export const appRouter = router({
             name: employee.name,
             designation: employee.designation,
             employeeId: employee.id.toString(),
+            agreementRefId: employee.agreementRefId || undefined,
           },
           period: {
             month: monthNames[payslip.month - 1],

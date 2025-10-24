@@ -297,7 +297,7 @@ export default function Payroll() {
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div>
-                          <p className="text-xs text-muted-foreground">Gross Salary</p>
+                          <p className="text-xs text-muted-foreground">Gross Payment</p>
                           <p className="text-lg font-semibold mt-1">{formatCurrency(totalGross)}</p>
                         </div>
                         <div>
@@ -313,7 +313,7 @@ export default function Payroll() {
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground">Net Salary</p>
+                          <p className="text-xs text-muted-foreground">Net Payment</p>
                           <p className="text-lg font-semibold mt-1 text-[rgb(var(--tea))]">
                             {formatCurrency(totalNet)}
                           </p>
@@ -334,7 +334,7 @@ export default function Payroll() {
 
                             <div className="space-y-2 text-sm">
                               <div className="flex justify-between">
-                                <span className="text-muted-foreground">Gross Salary</span>
+                                <span className="text-muted-foreground">Gross Payment</span>
                                 <span className="font-medium">{formatCurrency(payslip.grossSalary)}</span>
                               </div>
                               <div className="flex justify-between">
@@ -352,7 +352,7 @@ export default function Payroll() {
                                 </div>
                               )}
                               <div className="pt-2 border-t border-border flex justify-between">
-                                <span className="font-semibold">Net Salary</span>
+                                <span className="font-semibold">Net Payment</span>
                                 <span className="font-semibold text-[rgb(var(--tea))]">
                                   {formatCurrency(payslip.netSalary)}
                                 </span>
@@ -380,7 +380,7 @@ export default function Payroll() {
           <div className="bento-card text-center py-12">
             <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground">
-              No payslips generated yet. Click "Generate Payslips" to create payslips for a specific month.
+              No payslips generated yet. Click "Generate Payment Advices" to create payslips for a specific month.
             </p>
           </div>
         )}

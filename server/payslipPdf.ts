@@ -7,6 +7,7 @@ interface PayslipData {
     name: string;
     designation: string;
     employeeId: string;
+    agreementRefId?: string;
   };
   period: {
     month: string;
@@ -115,20 +116,20 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
 
   y += 18;
 
-  // Large PAYSLIP heading
+  // Large PAYMENT ADVICE heading
   doc.setFontSize(28);
   doc.setFont("helvetica", "bold");
-  doc.text("PAYSLIP", pageWidth / 2, y, { align: "center" });
+  doc.text("PAYMENT ADVICE", pageWidth / 2, y, { align: "center" });
 
   y += 10;
 
-  // Highlighted salary period
+  // Highlighted payment period
   doc.setFillColor(0, 0, 0);
   doc.rect(margin, y, contentWidth, 10, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
-  doc.text(`Salary for ${data.period.month} ${data.period.year}`, pageWidth / 2, y + 6.5, { align: "center" });
+  doc.text(`Payment for ${data.period.month} ${data.period.year}`, pageWidth / 2, y + 6.5, { align: "center" });
   doc.setTextColor(0, 0, 0);
 
   y += 14;
@@ -136,10 +137,11 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
   // Employee details box
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.3);
-  doc.rect(margin, y, contentWidth, 16);
+  const detailsHeight = data.employee.agreementRefId ? 20 : 16;
+  doc.rect(margin, y, contentWidth, detailsHeight);
   
   // Vertical divider
-  doc.line(pageWidth / 2, y, pageWidth / 2, y + 16);
+  doc.line(pageWidth / 2, y, pageWidth / 2, y + detailsHeight);
 
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
@@ -152,6 +154,14 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
   doc.text(data.employee.designation, margin + 35, y + 10);
   doc.text(data.employee.employeeId, margin + 35, y + 15);
 
+  // Agreement Reference (if exists)
+  if (data.employee.agreementRefId) {
+    doc.setFont("helvetica", "bold");
+    doc.text("Agreement Ref:", margin + 3, y + 19);
+    doc.setFont("helvetica", "normal");
+    doc.text(data.employee.agreementRefId, margin + 35, y + 19);
+  }
+
   doc.setFont("helvetica", "bold");
   doc.text("Working Days:", pageWidth / 2 + 3, y + 5);
   doc.text("Leaves Taken:", pageWidth / 2 + 3, y + 10);
@@ -162,7 +172,7 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
   doc.text(`${data.leaves.taken} / ${data.leaves.quota}`, pageWidth / 2 + 35, y + 10);
   doc.text(data.leaves.excess > 0 ? data.leaves.excess.toString() : "-", pageWidth / 2 + 35, y + 15);
 
-  y += 20;
+  y += detailsHeight + 4;
 
   // Earnings and Deductions table
   const tableY = y;
@@ -186,7 +196,7 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
 
   // Earnings rows
   const earnings = [
-    { label: "Basic Salary", amount: data.salary.basic },
+    { label: "Basic Payment", amount: data.salary.basic },
     { label: "HRA", amount: data.salary.hra },
     { label: "Other Allowances", amount: data.salary.otherAllowances },
   ];
@@ -227,7 +237,7 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
-  doc.text("GROSS SALARY", margin + 3, y + 4.5);
+  doc.text("GROSS PAYMENT", margin + 3, y + 4.5);
   doc.text(formatCurrency(data.salary.gross), margin + colWidth - 3, y + 4.5, { align: "right" });
 
   const totalDeductions = data.salary.tds + data.salary.leaveDeduction;
@@ -239,13 +249,13 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
 
   y += 10;
 
-  // Net Salary box
+  // Net Payment box
   doc.setFillColor(0, 0, 0);
   doc.rect(margin, y, contentWidth, 10, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
-  doc.text("NET SALARY", margin + 3, y + 6.5);
+  doc.text("NET PAYMENT", margin + 3, y + 6.5);
   doc.text(formatCurrency(data.salary.netSalary), pageWidth - margin - 3, y + 6.5, { align: "right" });
   doc.setTextColor(0, 0, 0);
 
@@ -263,7 +273,7 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
   y = pageHeight - 12;
   doc.setFontSize(6);
   doc.setFont("helvetica", "italic");
-  doc.text("This is a computer-generated payslip and does not require a signature.", pageWidth / 2, y, { align: "center" });
+  doc.text("This is a computer-generated payment advice and does not require a signature.", pageWidth / 2, y, { align: "center" });
   doc.text(`Generated on ${new Date().toLocaleDateString('en-IN')}`, pageWidth / 2, y + 3, { align: "center" });
 
   return Buffer.from(doc.output("arraybuffer"));

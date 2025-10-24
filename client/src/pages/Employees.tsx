@@ -53,6 +53,7 @@ export default function Employees() {
     address: "",
     joiningDate: "",
     designation: "",
+    agreementRefId: "",
     salary: "",
     status: "active" as "active" | "inactive",
   });
@@ -64,6 +65,7 @@ export default function Employees() {
       address: "",
       joiningDate: "",
       designation: "",
+      agreementRefId: "",
       salary: "",
       status: "active",
     });
@@ -79,6 +81,7 @@ export default function Employees() {
       address: formData.address || undefined,
       joiningDate: new Date(formData.joiningDate),
       designation: formData.designation,
+      agreementRefId: formData.agreementRefId || undefined,
       salary: parseInt(formData.salary),
       status: formData.status,
     };
@@ -98,6 +101,7 @@ export default function Employees() {
       address: employee.address || "",
       joiningDate: new Date(employee.joiningDate).toISOString().split('T')[0],
       designation: employee.designation,
+      agreementRefId: employee.agreementRefId || "",
       salary: employee.salary.toString(),
       status: employee.status,
     });
@@ -200,9 +204,19 @@ export default function Employees() {
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="agreementRefId">Agreement Reference ID</Label>
+                  <Input
+                    id="agreementRefId"
+                    value={formData.agreementRefId}
+                    onChange={(e) => setFormData({ ...formData, agreementRefId: e.target.value })}
+                    placeholder="Contract/Agreement ID"
+                  />
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="salary">Monthly Salary (₹) *</Label>
+                    <Label htmlFor="salary">Monthly Payment (₹) *</Label>
                     <Input
                       id="salary"
                       type="number"
