@@ -29,6 +29,20 @@
       "when": 1761299855216,
       "tag": "0003_wonderful_patch",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1761302848790,
+      "tag": "0004_old_the_renegades",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1761304222450,
+      "tag": "0005_right_harpoon",
+      "breakpoints": true
     }
   ]
 }
