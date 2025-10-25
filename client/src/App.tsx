@@ -4,6 +4,8 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 import Dashboard from "./pages/Dashboard";
 import Employees from "./pages/Employees";
@@ -14,31 +16,34 @@ import Settings from "./pages/Settings";
 
 function Router() {
   return (
-    <Switch>
-      <Route path="/">
-        <Redirect to="/dashboard" />
-      </Route>
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/employees" component={Employees} />
-      <Route path="/leaves" component={Leaves} />
-      <Route path="/payroll" component={Payroll} />
-
-      <Route path="/settings" component={Settings} />
-      <Route path="/404" component={NotFound} />
-      <Route component={NotFound} />
-    </Switch>
+    <ProtectedRoute>
+      <Switch>
+        <Route path="/">
+          <Redirect to="/dashboard" />
+        </Route>
+        <Route path="/dashboard" component={Dashboard} />
+        <Route path="/employees" component={Employees} />
+        <Route path="/leaves" component={Leaves} />
+        <Route path="/payroll" component={Payroll} />
+        <Route path="/settings" component={Settings} />
+        <Route path="/404" component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
+    </ProtectedRoute>
   );
 }
 
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
+      <AuthProvider>
+        <ThemeProvider defaultTheme="light">
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+          </TooltipProvider>
+        </ThemeProvider>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }
