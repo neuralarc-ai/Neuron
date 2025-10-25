@@ -1,6 +1,6 @@
 import { eq, and, desc } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
-import mysql from "mysql2/promise";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { 
   InsertUser, 
   users, 
@@ -26,16 +26,16 @@ export async function getDb() {
   
   if (!_db && process.env.DATABASE_URL) {
     try {
-      console.log("[Database] Attempting to connect to database...");
+      console.log("[Database] Attempting to connect to Supabase...");
       console.log("[Database] DATABASE_URL:", process.env.DATABASE_URL.substring(0, 20) + "...");
       
-      const pool = mysql.createPool(process.env.DATABASE_URL);
-      _db = drizzle(pool);
+      const client = postgres(process.env.DATABASE_URL);
+      _db = drizzle(client);
       
       // Test the connection
       console.log("[Database] Testing connection...");
-      await pool.execute('SELECT 1');
-      console.log("[Database] Successfully connected to database");
+      await client`SELECT 1`;
+      console.log("[Database] Successfully connected to Supabase");
     } catch (error) {
       console.error("[Database] Failed to connect:", error);
       console.error("[Database] Error details:", {
@@ -103,7 +103,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
+    await db.insert(users).values(values).onConflictDoUpdate({
+      target: users.openId,
       set: updateSet,
     });
   } catch (error) {

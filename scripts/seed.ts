@@ -1,7 +1,9 @@
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { employees, holidays, settings } from "../drizzle/schema";
 
-const db = drizzle(process.env.DATABASE_URL!);
+const client = postgres(process.env.DATABASE_URL!);
+const db = drizzle(client);
 
 async function seed() {
   console.log("🌱 Seeding database...");
@@ -9,7 +11,6 @@ async function seed() {
   // Seed settings (if not exists)
   try {
     await db.insert(settings).values({
-      id: 1,
       leaveQuotaPerMonth: 2,
       tdsRate: 10,
       workingDaysPerMonth: 22,
@@ -97,7 +98,7 @@ async function seed() {
     await db.insert(holidays).values(leaveRecords);
     console.log(`✅ Created ${leaveRecords.length} leave records`);
   } catch (error: any) {
-    if (error.message?.includes("Duplicate entry")) {
+    if (error.message?.includes("duplicate key") || error.message?.includes("already exists")) {
       console.log("⚠️  Sample data already exists");
     } else {
       console.error("❌ Error seeding data:", error);

@@ -1,9 +1,12 @@
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { authUsers } from "../drizzle/schema";
 import bcrypt from "bcryptjs";
+import { eq } from "drizzle-orm";
 
 async function seedAdmin() {
-  const db = drizzle(process.env.DATABASE_URL!);
+  const client = postgres(process.env.DATABASE_URL!);
+  const db = drizzle(client);
   
   // Hash the password
   const hashedPassword = await bcrypt.hash("admin", 10);
@@ -28,8 +31,6 @@ async function seedAdmin() {
   console.log("Username: admin");
   console.log("Password: admin");
 }
-
-import { eq } from "drizzle-orm";
 
 seedAdmin()
   .then(() => process.exit(0))

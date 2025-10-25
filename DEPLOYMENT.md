@@ -9,7 +9,7 @@ Set these in your Vercel project settings:
 - `JWT_SECRET` = `your-secure-jwt-secret-key-here` (generate a random string)
 
 ### Optional Variables (will use mock data if not set):
-- `DATABASE_URL` = `mysql://username:password@host:port/database`
+- `DATABASE_URL` = `postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres`
 - `VITE_APP_TITLE` = `Neuron HRMS`
 - `VITE_APP_ID` = `neuron-hrms`
 
