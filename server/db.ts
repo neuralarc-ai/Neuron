@@ -20,22 +20,36 @@ import { ENV } from './_core/env';
 let _db: any = null;
 
 export async function getDb() {
+  console.log("[Database] getDb called");
+  console.log("[Database] DATABASE_URL exists:", !!process.env.DATABASE_URL);
+  console.log("[Database] _db exists:", !!_db);
+  
   if (!_db && process.env.DATABASE_URL) {
     try {
       console.log("[Database] Attempting to connect to database...");
+      console.log("[Database] DATABASE_URL:", process.env.DATABASE_URL.substring(0, 20) + "...");
+      
       const pool = mysql.createPool(process.env.DATABASE_URL);
       _db = drizzle(pool);
       
       // Test the connection
+      console.log("[Database] Testing connection...");
       await pool.execute('SELECT 1');
       console.log("[Database] Successfully connected to database");
     } catch (error) {
       console.error("[Database] Failed to connect:", error);
+      console.error("[Database] Error details:", {
+        message: (error as Error).message,
+        stack: (error as Error).stack
+      });
       _db = null;
     }
   } else if (!process.env.DATABASE_URL) {
     console.warn("[Database] DATABASE_URL environment variable not set");
+    console.log("[Database] Available env vars:", Object.keys(process.env).filter(k => k.includes('DATABASE')));
   }
+  
+  console.log("[Database] Returning db:", !!_db);
   return _db;
 }
 
