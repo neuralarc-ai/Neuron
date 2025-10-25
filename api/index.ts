@@ -1,6 +1,9 @@
 // Minimal API handler to test basic functionality
 export default async function handler(request: Request) {
-  console.log('[API] Request received:', request.method, request.url);
+  console.log('[API] ===== NEW REQUEST =====');
+  console.log('[API] Method:', request.method);
+  console.log('[API] URL:', request.url);
+  console.log('[API] Headers:', Object.fromEntries(request.headers.entries()));
   
   try {
     // Handle CORS preflight
@@ -48,11 +51,18 @@ export default async function handler(request: Request) {
 
     // Handle tRPC batch requests
     if (url.pathname.startsWith('/api/trpc/') && url.search.includes('batch=1')) {
-      console.log('[API] Handling tRPC batch request:', url.pathname);
+      console.log('[API] Handling tRPC batch request:');
+      console.log('[API] - Full URL:', request.url);
+      console.log('[API] - Pathname:', url.pathname);
+      console.log('[API] - Search:', url.search);
+      console.log('[API] - Method:', request.method);
+      console.log('[API] - Headers:', Object.fromEntries(request.headers.entries()));
       
       try {
         const pathParts = url.pathname.split('/');
         const procedure = pathParts[pathParts.length - 1];
+        console.log('[API] - Path parts:', pathParts);
+        console.log('[API] - Procedure:', procedure);
         
         let result;
         
@@ -183,6 +193,9 @@ export default async function handler(request: Request) {
           }
         ];
         
+        console.log('[API] - Response data:', result);
+        console.log('[API] - tRPC response:', tRPCResponse);
+        
         return new Response(JSON.stringify(tRPCResponse), {
           status: 200,
           headers: {
@@ -218,7 +231,11 @@ export default async function handler(request: Request) {
 
     // Handle other tRPC requests with a simple response
     if (url.pathname.startsWith('/api/trpc')) {
-      console.log('[API] Handling tRPC request:', url.pathname);
+      console.log('[API] Handling other tRPC request:');
+      console.log('[API] - Full URL:', request.url);
+      console.log('[API] - Pathname:', url.pathname);
+      console.log('[API] - Search:', url.search);
+      console.log('[API] - Method:', request.method);
       
       return new Response(JSON.stringify({ 
         message: "tRPC endpoint reached",
