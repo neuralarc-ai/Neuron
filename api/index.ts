@@ -20,7 +20,7 @@ app.use(
 
 // Health check endpoint
 app.get("/api/health", (req: express.Request, res: express.Response) => {
-  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+  (res as any).json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 export default app;
