@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { trpc } from "@/lib/trpc";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,43 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Edit, Trash2, Mail, MapPin, Calendar as CalendarIcon, Briefcase } from "lucide-react";
 import { toast } from "sonner";
+import { api, Employee } from "@/lib/supabase";
 
 export default function Employees() {
   const [open, setOpen] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState<any>(null);
-  const utils = trpc.useUtils();
-
-  const { data: employees, isLoading } = trpc.employees.list.useQuery();
-  const createMutation = trpc.employees.create.useMutation({
-    onSuccess: () => {
-      utils.employees.list.invalidate();
-      utils.dashboard.stats.invalidate();
-      toast.success("Employee created successfully");
-      setOpen(false);
-      resetForm();
-    },
-    onError: () => toast.error("Failed to create employee"),
-  });
-
-  const updateMutation = trpc.employees.update.useMutation({
-    onSuccess: () => {
-      utils.employees.list.invalidate();
-      utils.dashboard.stats.invalidate();
-      toast.success("Employee updated successfully");
-      setOpen(false);
-      resetForm();
-    },
-    onError: () => toast.error("Failed to update employee"),
-  });
-
-  const deleteMutation = trpc.employees.delete.useMutation({
-    onSuccess: () => {
-      utils.employees.list.invalidate();
-      utils.dashboard.stats.invalidate();
-      toast.success("Employee deleted successfully");
-    },
-    onError: () => toast.error("Failed to delete employee"),
-  });
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -57,6 +27,24 @@ export default function Employees() {
     salary: "",
     status: "active" as "active" | "inactive",
   });
+
+  // Fetch employees on component mount
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        setIsLoading(true);
+        const data = await api.getEmployees();
+        setEmployees(data);
+      } catch (error) {
+        console.error('Error fetching employees:', error);
+        toast.error('Failed to load employees');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchEmployees();
+  }, []);
 
   const resetForm = () => {
     setFormData({
@@ -72,24 +60,45 @@ export default function Employees() {
     setEditingEmployee(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const data = {
       name: formData.name,
       email: formData.email,
       address: formData.address || undefined,
-      joiningDate: new Date(formData.joiningDate),
+      joiningDate: new Date(formData.joiningDate).toISOString(),
       designation: formData.designation,
       agreementRefId: formData.agreementRefId || undefined,
       salary: parseInt(formData.salary),
       status: formData.status,
     };
 
-    if (editingEmployee) {
-      updateMutation.mutate({ id: editingEmployee.id, ...data });
-    } else {
-      createMutation.mutate(data);
+    try {
+      setIsSubmitting(true);
+      let result;
+      
+      if (editingEmployee) {
+        result = await api.updateEmployee(editingEmployee.id, data);
+      } else {
+        result = await api.createEmployee(data);
+      }
+
+      if (result.success) {
+        toast.success(result.message);
+        setOpen(false);
+        resetForm();
+        // Refresh employees list
+        const updatedEmployees = await api.getEmployees();
+        setEmployees(updatedEmployees);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      toast.error('Failed to save employee');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -108,9 +117,22 @@ export default function Employees() {
     setOpen(true);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (confirm("Are you sure you want to delete this employee?")) {
-      deleteMutation.mutate({ id });
+      try {
+        const result = await api.deleteEmployee(id);
+        if (result.success) {
+          toast.success(result.message);
+          // Refresh employees list
+          const updatedEmployees = await api.getEmployees();
+          setEmployees(updatedEmployees);
+        } else {
+          toast.error(result.message);
+        }
+      } catch (error) {
+        console.error('Error deleting employee:', error);
+        toast.error('Failed to delete employee');
+      }
     }
   };
 
@@ -248,8 +270,8 @@ export default function Employees() {
                   <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-                    {editingEmployee ? "Update" : "Create"}
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Saving..." : (editingEmployee ? "Update" : "Create")}
                   </Button>
                 </div>
               </form>

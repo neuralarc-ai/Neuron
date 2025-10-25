@@ -1,6 +1,7 @@
-import { trpc } from "@/lib/trpc";
+import { useState, useEffect } from "react";
 import { Users, DollarSign, TrendingUp, Calendar } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { api, DashboardStats } from "@/lib/supabase";
 
 function StatCard({ 
   title, 
@@ -29,7 +30,27 @@ function StatCard({
 }
 
 export default function Dashboard() {
-  const { data: stats, isLoading } = trpc.dashboard.stats.useQuery();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await api.getDashboardStats();
+        setStats(data);
+      } catch (err) {
+        console.error('Error fetching dashboard stats:', err);
+        setError('Failed to load dashboard data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
 
   if (isLoading) {
     return (
