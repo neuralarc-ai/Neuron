@@ -43,8 +43,15 @@ export const appRouter = router({
         status: z.enum(["active", "inactive"]),
       }))
       .mutation(async ({ input }) => {
-        await db.createEmployee(input);
-        return { success: true };
+        try {
+          console.log('[tRPC] Creating employee:', input.name);
+          const result = await db.createEmployee(input);
+          console.log('[tRPC] Employee creation result:', result);
+          return { success: true, message: 'Employee created successfully' };
+        } catch (error) {
+          console.error('[tRPC] Employee creation error:', error);
+          throw new Error('Failed to create employee');
+        }
       }),
     update: publicProcedure
       .input(z.object({
@@ -58,15 +65,29 @@ export const appRouter = router({
         status: z.enum(["active", "inactive"]),
       }))
       .mutation(async ({ input }) => {
-        const { id, ...data } = input;
-        await db.updateEmployee(id, data);
-        return { success: true };
+        try {
+          console.log('[tRPC] Updating employee:', input.id);
+          const { id, ...data } = input;
+          const result = await db.updateEmployee(id, data);
+          console.log('[tRPC] Employee update result:', result);
+          return { success: true, message: 'Employee updated successfully' };
+        } catch (error) {
+          console.error('[tRPC] Employee update error:', error);
+          throw new Error('Failed to update employee');
+        }
       }),
     delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
-        await db.deleteEmployee(input.id);
-        return { success: true };
+        try {
+          console.log('[tRPC] Deleting employee:', input.id);
+          const result = await db.deleteEmployee(input.id);
+          console.log('[tRPC] Employee deletion result:', result);
+          return { success: true, message: 'Employee deleted successfully' };
+        } catch (error) {
+          console.error('[tRPC] Employee deletion error:', error);
+          throw new Error('Failed to delete employee');
+        }
       }),
   }),
 
