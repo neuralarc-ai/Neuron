@@ -22,12 +22,19 @@ let _db: any = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
+      console.log("[Database] Attempting to connect to database...");
       const pool = mysql.createPool(process.env.DATABASE_URL);
       _db = drizzle(pool);
+      
+      // Test the connection
+      await pool.execute('SELECT 1');
+      console.log("[Database] Successfully connected to database");
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      console.error("[Database] Failed to connect:", error);
       _db = null;
     }
+  } else if (!process.env.DATABASE_URL) {
+    console.warn("[Database] DATABASE_URL environment variable not set");
   }
   return _db;
 }

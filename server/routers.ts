@@ -10,14 +10,24 @@ export const appRouter = router({
 
   dashboard: router({
     stats: publicProcedure.query(async () => {
-      const stats = await db.getDashboardStats();
-      return stats;
+      try {
+        const stats = await db.getDashboardStats();
+        return stats;
+      } catch (error) {
+        console.error("[Dashboard Stats Error]:", error);
+        throw new Error("Failed to fetch dashboard statistics");
+      }
     }),
   }),
 
   employees: router({
     list: publicProcedure.query(async () => {
-      return await db.getAllEmployees();
+      try {
+        return await db.getAllEmployees();
+      } catch (error) {
+        console.error("[Employees List Error]:", error);
+        throw new Error("Failed to fetch employees list");
+      }
     }),
     active: publicProcedure.query(async () => {
       return await db.getActiveEmployees();
