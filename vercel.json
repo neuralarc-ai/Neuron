@@ -2,10 +2,6 @@
   "version": 2,
   "builds": [
     {
-      "src": "dist/public/**",
-      "use": "@vercel/static"
-    },
-    {
       "src": "api/index.ts",
       "use": "@vercel/node"
     }
@@ -16,16 +12,8 @@
       "dest": "/api/index.ts"
     },
     {
-      "src": "/assets/(.*)",
-      "dest": "/dist/public/assets/$1"
-    },
-    {
-      "src": "/(.*\\.(png|jpg|jpeg|gif|svg|ico|css|js))",
-      "dest": "/dist/public/$1"
-    },
-    {
       "src": "/(.*)",
-      "dest": "/dist/public/index.html"
+      "dest": "/index.html"
     }
   ]
 }
