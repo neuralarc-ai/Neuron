@@ -109,15 +109,6 @@ export default function Payroll() {
     return employee?.designation || "";
   };
 
-  const groupedPayslips = payslips?.reduce((acc, payslip) => {
-    const key = `${payslip.year}-${payslip.month}`;
-    if (!acc[key]) {
-      acc[key] = [];
-    }
-    acc[key].push(payslip);
-    return acc;
-  }, {} as Record<string, typeof payslips>);
-
   return (
     <DashboardLayout>
       <div className="container py-8 space-y-6">
