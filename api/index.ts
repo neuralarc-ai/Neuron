@@ -1,51 +1,82 @@
-import express from "express";
-import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "../server/routers";
 import { createContext } from "../server/_core/context";
 
-const app = express();
-
-// Configure CORS
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
-  if (req.method === 'OPTIONS') {
-    res.sendStatus(200);
-  } else {
-    next();
+export default async function handler(request: Request) {
+  // Handle CORS
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+      },
+    });
   }
-});
 
-// Configure body parser
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  // Handle health check
+  const url = new URL(request.url);
+  if (url.pathname === '/api/health') {
+    return new Response(JSON.stringify({ 
+      status: "ok", 
+      timestamp: new Date().toISOString() 
+    }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+  }
 
-// Error handling middleware
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('[API Error]', err);
-  res.status(500).json({ 
-    error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-  });
-});
+  // Handle tRPC requests
+  if (url.pathname.startsWith('/api/trpc')) {
+    try {
+      const response = await fetchRequestHandler({
+        endpoint: '/api/trpc',
+        req: request,
+        router: appRouter,
+        createContext: async () => {
+          // Create a mock context for Vercel
+          return {
+            req: request as any,
+            res: {} as any,
+            user: null,
+          };
+        },
+        onError: ({ error, path, input }) => {
+          console.error(`[tRPC Error] ${path}:`, error);
+        },
+      });
 
-// tRPC API
-app.use(
-  "/api/trpc",
-  createExpressMiddleware({
-    router: appRouter,
-    createContext,
-    onError: ({ error, path, input }) => {
-      console.error(`[tRPC Error] ${path}:`, error);
+      // Add CORS headers to the response
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+
+      return response;
+    } catch (error) {
+      console.error('[API Error]', error);
+      return new Response(JSON.stringify({ 
+        error: 'Internal Server Error',
+        message: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Something went wrong'
+      }), {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    }
+  }
+
+  // Handle other requests
+  return new Response(JSON.stringify({ error: 'Not Found' }), {
+    status: 404,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
     },
-  })
-);
-
-// Health check endpoint
-app.get("/api/health", (req: express.Request, res: express.Response) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
-});
-
-export default app;
+  });
+}
