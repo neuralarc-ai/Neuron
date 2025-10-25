@@ -113,9 +113,99 @@ export async function getUserByOpenId(openId: string) {
 // ===== EMPLOYEE FUNCTIONS =====
 
 export async function getAllEmployees() {
-  const db = await getDb();
-  if (!db) {
-    // Return mock data when database is not available
+  try {
+    console.log('[Database] Getting all employees...');
+    const db = await getDb();
+    if (!db) {
+      console.log('[Database] No database connection, returning mock data');
+      // Return mock data when database is not available
+      return [
+        {
+          id: 1,
+          name: "Rajesh Kumar",
+          email: "rajesh.kumar@neuron.com",
+          address: "123 MG Road, Bangalore, Karnataka",
+          joiningDate: new Date("2023-01-15"),
+          designation: "Senior Software Engineer",
+          agreementRefId: "REF001",
+          salary: 85000,
+          status: "active" as const,
+          createdAt: new Date("2023-01-15"),
+          updatedAt: new Date("2023-01-15")
+        },
+        {
+          id: 2,
+          name: "Priya Sharma",
+          email: "priya.sharma@neuron.com",
+          address: "456 Connaught Place, New Delhi",
+          joiningDate: new Date("2023-03-20"),
+          designation: "Product Manager",
+          agreementRefId: "REF002",
+          salary: 95000,
+          status: "active" as const,
+          createdAt: new Date("2023-03-20"),
+          updatedAt: new Date("2023-03-20")
+        },
+        {
+          id: 3,
+          name: "Amit Patel",
+          email: "amit.patel@neuron.com",
+          address: "789 Marine Drive, Mumbai, Maharashtra",
+          joiningDate: new Date("2022-11-10"),
+          designation: "UI/UX Designer",
+          agreementRefId: "REF003",
+          salary: 70000,
+          status: "active" as const,
+          createdAt: new Date("2022-11-10"),
+          updatedAt: new Date("2022-11-10")
+        },
+        {
+          id: 4,
+          name: "Sneha Reddy",
+          email: "sneha.reddy@neuron.com",
+          address: "321 Jubilee Hills, Hyderabad, Telangana",
+          joiningDate: new Date("2023-05-01"),
+          designation: "HR Manager",
+          agreementRefId: "REF004",
+          salary: 75000,
+          status: "active" as const,
+          createdAt: new Date("2023-05-01"),
+          updatedAt: new Date("2023-05-01")
+        },
+        {
+          id: 5,
+          name: "Vikram Singh",
+          email: "vikram.singh@neuron.com",
+          address: "654 Park Street, Kolkata, West Bengal",
+          joiningDate: new Date("2022-08-15"),
+          designation: "DevOps Engineer",
+          agreementRefId: "REF005",
+          salary: 80000,
+          status: "active" as const,
+          createdAt: new Date("2022-08-15"),
+          updatedAt: new Date("2022-08-15")
+        },
+        {
+          id: 6,
+          name: "Ananya Iyer",
+          email: "ananya.iyer@neuron.com",
+          address: "987 Anna Salai, Chennai, Tamil Nadu",
+          joiningDate: new Date("2023-02-28"),
+          designation: "Data Analyst",
+          agreementRefId: "REF006",
+          salary: 65000,
+          status: "active" as const,
+          createdAt: new Date("2023-02-28"),
+          updatedAt: new Date("2023-02-28")
+        }
+      ];
+    }
+    
+    console.log('[Database] Database connected, fetching real data');
+    return await db.select().from(employees).orderBy(desc(employees.createdAt));
+  } catch (error) {
+    console.error('[Database] Error in getAllEmployees:', error);
+    // Return mock data on error
     return [
       {
         id: 1,
@@ -142,62 +232,9 @@ export async function getAllEmployees() {
         status: "active" as const,
         createdAt: new Date("2023-03-20"),
         updatedAt: new Date("2023-03-20")
-      },
-      {
-        id: 3,
-        name: "Amit Patel",
-        email: "amit.patel@neuron.com",
-        address: "789 Marine Drive, Mumbai, Maharashtra",
-        joiningDate: new Date("2022-11-10"),
-        designation: "UI/UX Designer",
-        agreementRefId: "REF003",
-        salary: 70000,
-        status: "active" as const,
-        createdAt: new Date("2022-11-10"),
-        updatedAt: new Date("2022-11-10")
-      },
-      {
-        id: 4,
-        name: "Sneha Reddy",
-        email: "sneha.reddy@neuron.com",
-        address: "321 Jubilee Hills, Hyderabad, Telangana",
-        joiningDate: new Date("2023-05-01"),
-        designation: "HR Manager",
-        agreementRefId: "REF004",
-        salary: 75000,
-        status: "active" as const,
-        createdAt: new Date("2023-05-01"),
-        updatedAt: new Date("2023-05-01")
-      },
-      {
-        id: 5,
-        name: "Vikram Singh",
-        email: "vikram.singh@neuron.com",
-        address: "654 Park Street, Kolkata, West Bengal",
-        joiningDate: new Date("2022-08-15"),
-        designation: "DevOps Engineer",
-        agreementRefId: "REF005",
-        salary: 80000,
-        status: "active" as const,
-        createdAt: new Date("2022-08-15"),
-        updatedAt: new Date("2022-08-15")
-      },
-      {
-        id: 6,
-        name: "Ananya Iyer",
-        email: "ananya.iyer@neuron.com",
-        address: "987 Anna Salai, Chennai, Tamil Nadu",
-        joiningDate: new Date("2023-02-28"),
-        designation: "Data Analyst",
-        agreementRefId: "REF006",
-        salary: 65000,
-        status: "active" as const,
-        createdAt: new Date("2023-02-28"),
-        updatedAt: new Date("2023-02-28")
       }
     ];
   }
-  return await db.select().from(employees).orderBy(desc(employees.createdAt));
 }
 
 export async function getActiveEmployees() {
@@ -356,9 +393,34 @@ export async function updateSettings(settingsData: Partial<InsertSettings>) {
 // ===== DASHBOARD FUNCTIONS =====
 
 export async function getDashboardStats() {
-  const db = await getDb();
-  if (!db) {
-    // Return mock data when database is not available
+  try {
+    console.log('[Database] Getting dashboard stats...');
+    const db = await getDb();
+    if (!db) {
+      console.log('[Database] No database connection, returning mock data');
+      // Return mock data when database is not available
+      return { 
+        totalEmployees: 6, 
+        activeEmployees: 6, 
+        inactiveEmployees: 0, 
+        monthlyPayroll: 480000 
+      };
+    }
+    
+    console.log('[Database] Database connected, fetching real data');
+    const allEmployees = await getAllEmployees();
+    const activeEmps = allEmployees.filter((e: any) => e.status === 'active');
+    const monthlyPayroll = activeEmps.reduce((sum: number, emp: any) => sum + emp.salary, 0);
+    
+    return {
+      totalEmployees: allEmployees.length,
+      activeEmployees: activeEmps.length,
+      inactiveEmployees: allEmployees.length - activeEmps.length,
+      monthlyPayroll
+    };
+  } catch (error) {
+    console.error('[Database] Error in getDashboardStats:', error);
+    // Return mock data on error
     return { 
       totalEmployees: 6, 
       activeEmployees: 6, 
@@ -366,17 +428,6 @@ export async function getDashboardStats() {
       monthlyPayroll: 480000 
     };
   }
-  
-  const allEmployees = await getAllEmployees();
-  const activeEmps = allEmployees.filter((e: any) => e.status === 'active');
-  const monthlyPayroll = activeEmps.reduce((sum: number, emp: any) => sum + emp.salary, 0);
-  
-  return {
-    totalEmployees: allEmployees.length,
-    activeEmployees: activeEmps.length,
-    inactiveEmployees: allEmployees.length - activeEmps.length,
-    monthlyPayroll
-  };
 }
 
 // ===== PAYSLIP GENERATION =====

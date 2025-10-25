@@ -33,20 +33,45 @@ export default async function handler(request: Request) {
   // Handle tRPC requests
   if (url.pathname.startsWith('/api/trpc')) {
     try {
+      console.log('[API] Handling tRPC request:', url.pathname);
+      
       const response = await fetchRequestHandler({
         endpoint: '/api/trpc',
         req: request,
         router: appRouter,
         createContext: async () => {
-          // Create a mock context for Vercel
-          return {
-            req: request as any,
-            res: {} as any,
-            user: null,
-          };
+          try {
+            // Create a proper context for Vercel
+            const mockReq = {
+              method: request.method,
+              url: request.url,
+              headers: request.headers,
+              body: request.body,
+              query: Object.fromEntries(url.searchParams),
+              session: null, // No session in serverless
+            } as any;
+
+            const mockRes = {
+              status: () => ({ json: () => {} }),
+              json: () => {},
+              setHeader: () => {},
+              end: () => {},
+            } as any;
+
+            return await createContext({ req: mockReq, res: mockRes, info: {} as any });
+          } catch (contextError) {
+            console.error('[API] Context creation error:', contextError);
+            // Return a minimal context if creation fails
+            return {
+              req: request as any,
+              res: {} as any,
+              user: null,
+            };
+          }
         },
         onError: ({ error, path, input }) => {
           console.error(`[tRPC Error] ${path}:`, error);
+          console.error(`[tRPC Error] Input:`, input);
         },
       });
 
@@ -58,9 +83,11 @@ export default async function handler(request: Request) {
       return response;
     } catch (error) {
       console.error('[API Error]', error);
+      console.error('[API Error] Stack:', (error as Error).stack);
       return new Response(JSON.stringify({ 
         error: 'Internal Server Error',
-        message: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Something went wrong'
+        message: process.env.NODE_ENV === 'development' ? (error as Error).message : 'Something went wrong',
+        stack: process.env.NODE_ENV === 'development' ? (error as Error).stack : undefined
       }), {
         status: 500,
         headers: {
