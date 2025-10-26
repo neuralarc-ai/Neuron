@@ -260,23 +260,6 @@ export default function Payroll() {
                   </p>
                 </div>
 
-                {showLeaveWarning && (
-                  <Alert className="border-[rgb(var(--tangerine))] bg-[rgb(var(--tangerine))]/10">
-                    <AlertTriangle className="h-4 w-4 text-[rgb(var(--tangerine))]" />
-                    <AlertDescription className="text-sm">
-                      <p className="font-semibold mb-2">Leave records missing for:</p>
-                      <ul className="list-disc list-inside space-y-1">
-                        {missingEmployees.map((name, idx) => (
-                          <li key={idx}>{name}</li>
-                        ))}
-                      </ul>
-                      <p className="mt-3 text-xs">
-                        Please record leaves for these employees before generating payslips, or continue to generate with zero leaves.
-                      </p>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
                 <div className="bg-muted/50 p-4 rounded-lg text-sm">
                   <p className="text-muted-foreground">
                     This will generate payslips for all active employees for the selected period.
