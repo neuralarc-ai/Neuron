@@ -95,17 +95,33 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
   // Load NeuralArc logo (try to load from public folder)
   try {
     const logoUrl = '/neuralarc-logo.png';
-    const img = new Image();
-    img.src = logoUrl;
     
-    // Add a small delay to ensure image loads
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Load image with proper dimensions
+    const loadImage = (src: string): Promise<HTMLImageElement> => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      });
+    };
     
-    if (img.complete) {
-      doc.addImage(img, 'PNG', margin, y, 35, 8);
-    }
+    const img = await loadImage(logoUrl);
+    
+    // Calculate proper dimensions maintaining aspect ratio
+    // Original logo: 785x211 = 3.72:1 aspect ratio
+    // Target height: 12mm
+    const targetHeight = 12;
+    const targetWidth = targetHeight * 3.72; // ~45mm to maintain aspect ratio
+    
+    doc.addImage(img, 'PNG', margin, y, targetWidth, targetHeight);
   } catch (error) {
-    console.log('Could not load logo image');
+    console.log('Could not load logo image', error);
+    // Draw NeuralArc text as fallback
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("NeuralArc", margin, y + 8);
   }
   
   doc.setFontSize(7);
@@ -116,14 +132,14 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
   doc.text("India Office: AMPVC Consulting LLP, Trimurti HoneyGold,", pageWidth - margin, y + 8.5, { align: "right" });
   doc.text("Range Hills Road, Pune 411 007", pageWidth - margin, y + 11.5, { align: "right" });
 
-  y += 18;
+  y += 17; // Adjusted from 18 to 17 for better spacing
 
   // Large PAYMENT ADVICE heading
   doc.setFontSize(28);
   doc.setFont("helvetica", "bold");
   doc.text("PAYMENT ADVICE", pageWidth / 2, y, { align: "center" });
 
-  y += 10;
+  y += 12; // Adjusted from 10 to 12 for better spacing
 
   // Highlighted payment period
   doc.setFillColor(0, 0, 0);
@@ -134,7 +150,7 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
   doc.text(`Payment for ${data.period.month} ${data.period.year}`, pageWidth / 2, y + 6.5, { align: "center" });
   doc.setTextColor(0, 0, 0);
 
-  y += 14;
+  y += 15; // Adjusted from 14 to 15 for better spacing
 
   // Employee details box
   doc.setDrawColor(0, 0, 0);
