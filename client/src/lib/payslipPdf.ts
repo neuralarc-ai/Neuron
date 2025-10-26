@@ -233,14 +233,18 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
     if (i < earnings.length) {
       doc.rect(margin, y, colWidth, rowHeight);
       doc.text(earnings[i].label, margin + 3, y + 4);
-      doc.text(formatCurrency(earnings[i].amount), margin + colWidth - 3, y + 4, { align: "right" });
+      doc.setFontSize(7); // Smaller font for amounts
+      doc.text(formatCurrency(earnings[i].amount), margin + colWidth - 2, y + 4, { align: "right" });
+      doc.setFontSize(8); // Reset font size
     }
 
     // Deductions
     if (i < deductions.length) {
       doc.rect(margin + colWidth, y, colWidth, rowHeight);
       doc.text(deductions[i].label, margin + colWidth + 3, y + 4);
-      doc.text(formatCurrency(deductions[i].amount), pageWidth - margin - 3, y + 4, { align: "right" });
+      doc.setFontSize(7); // Smaller font for amounts
+      doc.text(formatCurrency(deductions[i].amount), pageWidth - margin - 2, y + 4, { align: "right" });
+      doc.setFontSize(8); // Reset font size
     }
 
     y += rowHeight;
@@ -252,13 +256,16 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
   doc.rect(margin + colWidth, y, colWidth, 7, "F");
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(8); // Smaller font to prevent overflow
   doc.text("GROSS PAYMENT", margin + 3, y + 4.5);
-  doc.text(formatCurrency(data.salary.gross), margin + colWidth - 3, y + 4.5, { align: "right" });
+  doc.setFontSize(7); // Even smaller font for amounts in totals
+  doc.text(formatCurrency(data.salary.gross), margin + colWidth - 2, y + 4.5, { align: "right" });
 
   const totalDeductions = data.salary.tds + data.salary.leaveDeduction;
+  doc.setFontSize(8); // Reset to bold for label
   doc.text("TOTAL DEDUCTIONS", margin + colWidth + 3, y + 4.5);
-  doc.text(formatCurrency(totalDeductions), pageWidth - margin - 3, y + 4.5, { align: "right" });
+  doc.setFontSize(7); // Smaller font for amounts
+  doc.text(formatCurrency(totalDeductions), pageWidth - margin - 2, y + 4.5, { align: "right" });
 
   doc.rect(margin, y, colWidth, 7);
   doc.rect(margin + colWidth, y, colWidth, 7);
