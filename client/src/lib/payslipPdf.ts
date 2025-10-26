@@ -232,22 +232,24 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
     // Earnings
     if (i < earnings.length) {
       doc.rect(margin, y, colWidth, rowHeight);
-      doc.text(earnings[i].label, margin + 3, y + 4);
+      // Align label and amount next to each other on the left
+      const label = earnings[i].label;
+      const amount = formatCurrency(earnings[i].amount);
+      doc.text(label, margin + 3, y + 4);
       doc.setFontSize(7); // Smaller font for amounts
-      // Position amounts with fixed padding from right edge
-      const earningAmount = formatCurrency(earnings[i].amount);
-      doc.text(earningAmount, margin + colWidth - 3, y + 4, { align: "right", maxWidth: colWidth - 10 });
+      doc.text(amount, margin + 60, y + 4); // Position next to label
       doc.setFontSize(8); // Reset font size
     }
 
     // Deductions
     if (i < deductions.length) {
       doc.rect(margin + colWidth, y, colWidth, rowHeight);
-      doc.text(deductions[i].label, margin + colWidth + 3, y + 4);
+      // Align label and amount next to each other on the left
+      const label = deductions[i].label;
+      const amount = formatCurrency(deductions[i].amount);
+      doc.text(label, margin + colWidth + 3, y + 4);
       doc.setFontSize(7); // Smaller font for amounts
-      // Position amounts with fixed padding from right edge
-      const deductionAmount = formatCurrency(deductions[i].amount);
-      doc.text(deductionAmount, pageWidth - margin - 3, y + 4, { align: "right", maxWidth: colWidth - 10 });
+      doc.text(amount, margin + colWidth + 60, y + 4); // Position next to label
       doc.setFontSize(8); // Reset font size
     }
 
@@ -264,14 +266,14 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
   doc.text("GROSS PAYMENT", margin + 3, y + 4.5);
   doc.setFontSize(7); // Even smaller font for amounts in totals
   const grossAmount = formatCurrency(data.salary.gross);
-  doc.text(grossAmount, margin + colWidth - 3, y + 4.5, { align: "right", maxWidth: colWidth - 10 });
+  doc.text(grossAmount, margin + 60, y + 4.5); // Position next to label
 
   const totalDeductions = data.salary.tds + data.salary.leaveDeduction;
   doc.setFontSize(8); // Reset to bold for label
   doc.text("TOTAL DEDUCTIONS", margin + colWidth + 3, y + 4.5);
   doc.setFontSize(7); // Smaller font for amounts
   const totalDeductionsAmount = formatCurrency(totalDeductions);
-  doc.text(totalDeductionsAmount, pageWidth - margin - 3, y + 4.5, { align: "right", maxWidth: colWidth - 10 });
+  doc.text(totalDeductionsAmount, margin + colWidth + 60, y + 4.5); // Position next to label
 
   doc.rect(margin, y, colWidth, 7);
   doc.rect(margin + colWidth, y, colWidth, 7);
