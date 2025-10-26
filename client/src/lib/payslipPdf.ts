@@ -232,22 +232,18 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
     // Earnings
     if (i < earnings.length) {
       doc.rect(margin, y, colWidth, rowHeight);
-      doc.text(earnings[i].label, margin + 2, y + 4);
-      doc.setFontSize(6); // Smaller font for amounts
-      // Position amounts with moderate padding from right edge
-      const earningAmount = formatCurrency(earnings[i].amount);
-      doc.text(earningAmount, margin + colWidth - 5, y + 4);
+      doc.text(earnings[i].label, margin + 3, y + 4);
+      doc.setFontSize(7); // Smaller font for amounts
+      doc.text(formatCurrency(earnings[i].amount), margin + colWidth - 6, y + 4, { align: "right" });
       doc.setFontSize(8); // Reset font size
     }
 
     // Deductions
     if (i < deductions.length) {
       doc.rect(margin + colWidth, y, colWidth, rowHeight);
-      doc.text(deductions[i].label, margin + colWidth + 2, y + 4);
-      doc.setFontSize(6); // Smaller font for amounts
-      // Position amounts with moderate padding from right edge
-      const deductionAmount = formatCurrency(deductions[i].amount);
-      doc.text(deductionAmount, pageWidth - margin - 5, y + 4);
+      doc.text(deductions[i].label, margin + colWidth + 3, y + 4);
+      doc.setFontSize(7); // Smaller font for amounts
+      doc.text(formatCurrency(deductions[i].amount), pageWidth - margin - 6, y + 4, { align: "right" });
       doc.setFontSize(8); // Reset font size
     }
 
@@ -260,20 +256,16 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
   doc.rect(margin + colWidth, y, colWidth, 7, "F");
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7); // Smaller font to prevent overflow
-  doc.text("GROSS PAYMENT", margin + 2, y + 4.5);
-  doc.setFontSize(6); // Smaller font for amounts in totals
-  const grossAmount = formatCurrency(data.salary.gross);
-  // Position amounts with moderate padding from right edge
-  doc.text(grossAmount, margin + colWidth - 5, y + 4.5);
+  doc.setFontSize(8); // Smaller font to prevent overflow
+  doc.text("GROSS PAYMENT", margin + 3, y + 4.5);
+  doc.setFontSize(7); // Even smaller font for amounts in totals
+  doc.text(formatCurrency(data.salary.gross), margin + colWidth - 6, y + 4.5, { align: "right" });
 
   const totalDeductions = data.salary.tds + data.salary.leaveDeduction;
-  doc.setFontSize(7); // Reset to bold for label
-  doc.text("TOTAL DEDUCTIONS", margin + colWidth + 2, y + 4.5);
-  doc.setFontSize(6); // Smaller font for amounts
-  const totalDeductionsAmount = formatCurrency(totalDeductions);
-  // Position amounts with moderate padding from right edge
-  doc.text(totalDeductionsAmount, pageWidth - margin - 5, y + 4.5);
+  doc.setFontSize(8); // Reset to bold for label
+  doc.text("TOTAL DEDUCTIONS", margin + colWidth + 3, y + 4.5);
+  doc.setFontSize(7); // Smaller font for amounts
+  doc.text(formatCurrency(totalDeductions), pageWidth - margin - 6, y + 4.5, { align: "right" });
 
   doc.rect(margin, y, colWidth, 7);
   doc.rect(margin + colWidth, y, colWidth, 7);
