@@ -7,51 +7,45 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileText, Download, Calendar as CalendarIcon, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { api, Employee } from "@/lib/supabase";
+import { api, Employee, Payslip } from "@/lib/supabase";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function Payroll() {
   const [open, setOpen] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
-  const [showLeaveWarning, setShowLeaveWarning] = useState(false);
-  const [missingEmployees, setMissingEmployees] = useState<string[]>([]);
+  const [selectedEmployees, setSelectedEmployees] = useState<number[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedPayslips, setGeneratedPayslips] = useState<Array<{
-    id: number;
-    employeeId: number;
-    month: number;
-    year: number;
-    grossSalary: number;
-    tds: number;
-    deductions: number;
-    netSalary: number;
-  }>>([]);
+  const [payslips, setPayslips] = useState<Payslip[]>([]);
 
-  // Fetch employees
+  // Fetch employees and payslips
   useEffect(() => {
-    const fetchEmployees = async () => {
+    const fetchData = async () => {
       try {
         setIsLoading(true);
-        const data = await api.getEmployees();
-        setEmployees(data);
+        const [employeesData, payslipsData] = await Promise.all([
+          api.getEmployees(),
+          api.getPayslips(),
+        ]);
+        setEmployees(employeesData);
+        setPayslips(payslipsData);
       } catch (error) {
-        console.error('Error fetching employees:', error);
-        toast.error('Failed to load employees');
+        console.error('Error fetching data:', error);
+        toast.error('Failed to load data');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchEmployees();
+    fetchData();
   }, []);
 
   const resetForm = () => {
     setSelectedMonth("");
     setSelectedYear("");
-    setShowLeaveWarning(false);
-    setMissingEmployees([]);
+    setSelectedEmployees([]);
   };
 
   const handleGenerate = async () => {
@@ -60,29 +54,28 @@ export default function Payroll() {
       return;
     }
 
+    if (selectedEmployees.length === 0) {
+      toast.error("Please select at least one employee");
+      return;
+    }
+
     setIsGenerating(true);
     try {
-      const activeEmployees = employees.filter(emp => emp.status === 'active');
-      
-      if (activeEmployees.length === 0) {
-        toast.error("No active employees found");
-        return;
-      }
-
-      // Generate payslips for all active employees
       const month = parseInt(selectedMonth);
       const year = parseInt(selectedYear);
       const tdsRate = 0.10; // 10% TDS
       
-      const newPayslips = activeEmployees.map((employee, index) => {
+      const newPayslips = selectedEmployees.map((employeeId) => {
+        const employee = employees.find(emp => emp.id === employeeId);
+        if (!employee) return null;
+
         const grossSalary = employee.salary;
         const tds = Math.floor(grossSalary * tdsRate);
-        const deductions = tds; // Add more deductions here if needed
+        const deductions = tds;
         const netSalary = grossSalary - deductions;
 
         return {
-          id: Date.now() + index, // Simple ID generation
-          employeeId: employee.id,
+          employeeId,
           month,
           year,
           grossSalary,
@@ -90,14 +83,19 @@ export default function Payroll() {
           deductions,
           netSalary,
         };
-      });
+      }).filter(Boolean) as Omit<Payslip, 'id' | 'createdAt'>[];
 
-      // Add to existing payslips
-      setGeneratedPayslips(prev => [...newPayslips, ...prev]);
+      // Save to database
+      const result = await api.createPayslips(newPayslips);
       
-      toast.success(`Generated ${activeEmployees.length} payslips successfully`);
-      setOpen(false);
-      resetForm();
+      if (result.success && result.data) {
+        setPayslips(prev => [...result.data!, ...prev]);
+        toast.success(result.message);
+        setOpen(false);
+        resetForm();
+      } else {
+        toast.error(result.message);
+      }
     } catch (error) {
       console.error('Error generating payslips:', error);
       toast.error("Failed to generate payslips");
@@ -106,11 +104,36 @@ export default function Payroll() {
     }
   };
 
-  const handleDownload = (payslipId: number) => {
-    // For now, just show a message
-    // In a real implementation, you'd download the PDF
-    console.log(`Downloading payslip ${payslipId}`);
-    toast.info("PDF download feature coming soon");
+  const handleDownload = async (payslipId: number) => {
+    try {
+      const payslip = payslips.find(p => p.id === payslipId);
+      if (!payslip) {
+        toast.error("Payslip not found");
+        return;
+      }
+
+      const employee = employees.find(e => e.id === payslip.employeeId);
+      
+      // Create PDF content
+      const monthName = months.find(m => m.value === payslip.month.toString())?.label || payslip.month.toString();
+      const pdfContent = `PAYMENT ADVICE\n\nEmployee: ${employee?.name || 'Unknown'}\nDesignation: ${employee?.designation || 'N/A'}\nPeriod: ${monthName} ${payslip.year}\n\nGross Salary: ₹${payslip.grossSalary.toLocaleString('en-IN')}\nTDS Deduction: ₹${payslip.tds.toLocaleString('en-IN')}\nOther Deductions: ₹${(payslip.deductions - payslip.tds).toLocaleString('en-IN')}\n\nNet Salary: ₹${payslip.netSalary.toLocaleString('en-IN')}\n\nGenerated on: ${new Date().toLocaleDateString()}`;
+      
+      // Create and download PDF
+      const blob = new Blob([pdfContent], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Payment-Advice-${employee?.name}-${monthName}-${payslip.year}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast.success("Payment advice downloaded successfully");
+    } catch (error) {
+      console.error('Error downloading payslip:', error);
+      toast.error("Failed to download payment advice");
+    }
   };
 
   const months = [
@@ -204,6 +227,39 @@ export default function Payroll() {
                   </Select>
                 </div>
 
+                <div className="space-y-2">
+                  <Label>Select Employees *</Label>
+                  <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-2">
+                    {employees.filter(emp => emp.status === 'active').map((employee) => (
+                      <div key={employee.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`employee-${employee.id}`}
+                          checked={selectedEmployees.includes(employee.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedEmployees(prev => [...prev, employee.id]);
+                            } else {
+                              setSelectedEmployees(prev => prev.filter(id => id !== employee.id));
+                            }
+                          }}
+                        />
+                        <Label
+                          htmlFor={`employee-${employee.id}`}
+                          className="flex-1 cursor-pointer"
+                        >
+                          <div className="font-medium">{employee.name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {employee.designation} • {formatCurrency(employee.salary)}
+                          </div>
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedEmployees.length} employee(s) selected
+                  </p>
+                </div>
+
                 {showLeaveWarning && (
                   <Alert className="border-[rgb(var(--tangerine))] bg-[rgb(var(--tangerine))]/10">
                     <AlertTriangle className="h-4 w-4 text-[rgb(var(--tangerine))]" />
@@ -252,7 +308,7 @@ export default function Payroll() {
               </div>
             ))}
           </div>
-        ) : generatedPayslips.length === 0 ? (
+        ) : payslips.length === 0 ? (
           <div className="bento-card text-center py-12">
             <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground">
@@ -262,15 +318,15 @@ export default function Payroll() {
         ) : (
           <div className="space-y-4">
             {Object.entries(
-              generatedPayslips.reduce((acc, payslip) => {
+              payslips.reduce((acc, payslip) => {
                 const key = `${payslip.year}-${payslip.month}`;
                 if (!acc[key]) {
                   acc[key] = [];
                 }
                 acc[key].push(payslip);
                 return acc;
-              }, {} as Record<string, typeof generatedPayslips>)
-            ).map(([period, payslips]) => {
+              }, {} as Record<string, typeof payslips>)
+            ).map(([period, payslipGroup]) => {
               const [year, month] = period.split('-');
               const monthName = months.find(m => m.value === month)?.label || month;
               
@@ -282,12 +338,12 @@ export default function Payroll() {
                       {monthName} {year}
                     </h2>
                     <span className="text-sm text-muted-foreground ml-auto">
-                      {payslips.length} payslip{payslips.length > 1 ? 's' : ''}
+                      {payslipGroup.length} payslip{payslipGroup.length > 1 ? 's' : ''}
                     </span>
                   </div>
                   
                   <div className="space-y-3">
-                    {payslips.map((payslip) => {
+                    {payslipGroup.map((payslip) => {
                       const employee = employees.find(e => e.id === payslip.employeeId);
                       return (
                         <div key={payslip.id} className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">

@@ -21,11 +21,17 @@ export interface Employee {
   updatedAt: string
 }
 
-export interface DashboardStats {
-  totalEmployees: number
-  activeEmployees: number
-  inactiveEmployees: number
-  monthlyPayroll: number
+export interface Payslip {
+  id: number
+  employeeId: number
+  month: number
+  year: number
+  grossSalary: number
+  tds: number
+  deductions: number
+  netSalary: number
+  pdfUrl?: string
+  createdAt: string
 }
 
 // Simple API functions
@@ -146,5 +152,52 @@ export const api = {
       console.error('Error in deleteEmployee:', error)
       return { success: false, message: 'Failed to delete employee' }
     }
+  },
+
+  // Get all payslips
+  async getPayslips(): Promise<Payslip[]> {
+    try {
+      const { data, error } = await supabase
+        .from('payslips')
+        .select('*')
+        .order('year', { ascending: false })
+        .order('month', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching payslips:', error)
+        return []
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error in getPayslips:', error)
+      return []
+    }
+  },
+
+  // Create payslips
+  async createPayslips(payslips: Omit<Payslip, 'id' | 'createdAt'>[]): Promise<{ success: boolean; message: string; data?: Payslip[] }> {
+    try {
+      const { data, error } = await supabase
+        .from('payslips')
+        .insert(payslips)
+        .select()
+
+      if (error) {
+        console.error('Error creating payslips:', error)
+        return { success: false, message: 'Failed to create payslips' }
+      }
+
+      return { success: true, message: `Created ${data.length} payslips successfully`, data }
+    } catch (error) {
+      console.error('Error in createPayslips:', error)
+      return { success: false, message: 'Failed to create payslips' }
+    }
+  },
+
+  // Download payslip PDF (placeholder for now)
+  async downloadPayslipPdf(payslipId: number): Promise<void> {
+    // In a real implementation, you'd generate PDF and trigger download
+    console.log(`Would download PDF for payslip ${payslipId}`)
   }
 }
