@@ -76,7 +76,12 @@ function numberToWords(num: number): string {
 }
 
 function formatCurrency(amount: number): string {
-  return amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Use "Rs." prefix instead of ₹ symbol as jsPDF may not support it properly
+  // Remove .00 if amount is a whole number
+  const formatted = amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Remove trailing .00 if present
+  const cleaned = formatted.replace(/\.00$/, '');
+  return `Rs.${cleaned}`;
 }
 
 export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
@@ -114,14 +119,14 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
   doc.text("India Office: AMPVC Consulting LLP, Trimurti HoneyGold,", pageWidth - margin, y + 8.5, { align: "right" });
   doc.text("Range Hills Road, Pune 411 007", pageWidth - margin, y + 11.5, { align: "right" });
 
-  y += 18;
+  y += 26; // Added 8 units of top margin to PAYMENT ADVICE title
 
   // Large PAYMENT ADVICE heading
   doc.setFontSize(28);
   doc.setFont("helvetica", "bold");
   doc.text("PAYMENT ADVICE", pageWidth / 2, y, { align: "center" });
 
-  y += 10;
+  y += 6; // Reduced spacing to bring it closer to payment period section
 
   // Highlighted payment period
   doc.setFillColor(0, 0, 0);
@@ -137,7 +142,7 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
   // Employee details box
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.3);
-  const detailsHeight = data.employee.agreementRefId ? 20 : 16;
+  const detailsHeight = data.employee.agreementRefId ? 25 : 16; // Increased to 25 to add proper bottom margin for Agreement Ref
   doc.rect(margin, y, contentWidth, detailsHeight);
   
   // Vertical divider
@@ -156,10 +161,11 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
 
   // Agreement Reference (if exists)
   if (data.employee.agreementRefId) {
+    doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
-    doc.text("Agreement Ref:", margin + 3, y + 19);
+    doc.text("Agreement Ref:", margin + 3, y + 20); // Added 1 unit vertical margin
     doc.setFont("helvetica", "normal");
-    doc.text(data.employee.agreementRefId, margin + 35, y + 19);
+    doc.text(data.employee.agreementRefId, margin + 35, y + 20);
   }
 
   doc.setFont("helvetica", "bold");
@@ -262,10 +268,12 @@ export async function generatePayslipPDF(data: PayslipData): Promise<Buffer> {
   // Amount in words
   doc.setFontSize(7);
   doc.setFont("helvetica", "bold");
-  doc.text("Amount in Words:", margin, y);
+  doc.text("Amount in Words: ", margin, y);
   doc.setFont("helvetica", "normal");
   const amountWords = numberToWords(data.salary.netSalary);
-  doc.text(amountWords, margin, y + 4, { maxWidth: contentWidth });
+  // Calculate position after label to place amount on same line
+  const labelWidth = doc.getTextWidth("Amount in Words: ");
+  doc.text(amountWords, margin + labelWidth + 2, y, { maxWidth: contentWidth - labelWidth - 2 });
 
   // Footer
   y = pageHeight - 12;
