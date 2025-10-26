@@ -18,6 +18,16 @@ export default function Payroll() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedPayslips, setGeneratedPayslips] = useState<Array<{
+    id: number;
+    employeeId: number;
+    month: number;
+    year: number;
+    grossSalary: number;
+    tds: number;
+    deductions: number;
+    netSalary: number;
+  }>>([]);
 
   // Fetch employees
   useEffect(() => {
@@ -52,10 +62,40 @@ export default function Payroll() {
 
     setIsGenerating(true);
     try {
-      // For now, just show a success message
-      // In a real implementation, you'd generate payslips
-      console.log(`Generating payslips for ${selectedMonth}/${selectedYear}`);
-      toast.success("Payslips generated successfully");
+      const activeEmployees = employees.filter(emp => emp.status === 'active');
+      
+      if (activeEmployees.length === 0) {
+        toast.error("No active employees found");
+        return;
+      }
+
+      // Generate payslips for all active employees
+      const month = parseInt(selectedMonth);
+      const year = parseInt(selectedYear);
+      const tdsRate = 0.10; // 10% TDS
+      
+      const newPayslips = activeEmployees.map((employee, index) => {
+        const grossSalary = employee.salary;
+        const tds = Math.floor(grossSalary * tdsRate);
+        const deductions = tds; // Add more deductions here if needed
+        const netSalary = grossSalary - deductions;
+
+        return {
+          id: Date.now() + index, // Simple ID generation
+          employeeId: employee.id,
+          month,
+          year,
+          grossSalary,
+          tds,
+          deductions,
+          netSalary,
+        };
+      });
+
+      // Add to existing payslips
+      setGeneratedPayslips(prev => [...newPayslips, ...prev]);
+      
+      toast.success(`Generated ${activeEmployees.length} payslips successfully`);
       setOpen(false);
       resetForm();
     } catch (error) {
@@ -212,12 +252,78 @@ export default function Payroll() {
               </div>
             ))}
           </div>
-        ) : (
+        ) : generatedPayslips.length === 0 ? (
           <div className="bento-card text-center py-12">
             <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground">
-              No payslips generated yet. Click "Generate Payment Advices" to create payslips for a specific month.
+              No payslips generated yet. Click "Generate Payment Advice" to create payslips for a specific month.
             </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {Object.entries(
+              generatedPayslips.reduce((acc, payslip) => {
+                const key = `${payslip.year}-${payslip.month}`;
+                if (!acc[key]) {
+                  acc[key] = [];
+                }
+                acc[key].push(payslip);
+                return acc;
+              }, {} as Record<string, typeof generatedPayslips>)
+            ).map(([period, payslips]) => {
+              const [year, month] = period.split('-');
+              const monthName = months.find(m => m.value === month)?.label || month;
+              
+              return (
+                <div key={period} className="bento-card">
+                  <div className="flex items-center gap-3 mb-4 pb-4 border-b border-border">
+                    <CalendarIcon className="h-5 w-5 text-[rgb(var(--lavander))" />
+                    <h2 className="text-xl font-semibold">
+                      {monthName} {year}
+                    </h2>
+                    <span className="text-sm text-muted-foreground ml-auto">
+                      {payslips.length} payslip{payslips.length > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {payslips.map((payslip) => {
+                      const employee = employees.find(e => e.id === payslip.employeeId);
+                      return (
+                        <div key={payslip.id} className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
+                          <div className="flex-1">
+                            <h3 className="font-semibold">{employee?.name || 'Unknown'}</h3>
+                            <p className="text-sm text-muted-foreground">{employee?.designation || ''}</p>
+                          </div>
+                          <div className="flex items-center gap-6">
+                            <div className="text-right">
+                              <p className="text-sm text-muted-foreground">Gross Salary</p>
+                              <p className="font-semibold">{formatCurrency(payslip.grossSalary)}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm text-muted-foreground">Deductions</p>
+                              <p className="font-semibold text-[rgb(var(--tangerine))]">-{formatCurrency(payslip.deductions)}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm text-muted-foreground">Net Salary</p>
+                              <p className="font-bold text-lg text-[rgb(var(--tea))]">{formatCurrency(payslip.netSalary)}</p>
+                            </div>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              onClick={() => handleDownload(payslip.id)}
+                              className="ml-4"
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
