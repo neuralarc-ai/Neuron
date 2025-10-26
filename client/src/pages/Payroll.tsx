@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { api, Employee, Payslip } from "@/lib/supabase";
 import { Checkbox } from "@/components/ui/checkbox";
+import { generatePayslipPDF } from "@/lib/payslipPdf";
 
 export default function Payroll() {
   const [open, setOpen] = useState(false);
@@ -113,21 +114,58 @@ export default function Payroll() {
       }
 
       const employee = employees.find(e => e.id === payslip.employeeId);
-      
-      // Create PDF content
+      if (!employee) {
+        toast.error("Employee not found");
+        return;
+      }
+
       const monthName = months.find(m => m.value === payslip.month.toString())?.label || payslip.month.toString();
-      const pdfContent = `PAYMENT ADVICE\n\nEmployee: ${employee?.name || 'Unknown'}\nDesignation: ${employee?.designation || 'N/A'}\nPeriod: ${monthName} ${payslip.year}\n\nGross Salary: ₹${payslip.grossSalary.toLocaleString('en-IN')}\nTDS Deduction: ₹${payslip.tds.toLocaleString('en-IN')}\nOther Deductions: ₹${(payslip.deductions - payslip.tds).toLocaleString('en-IN')}\n\nNet Salary: ₹${payslip.netSalary.toLocaleString('en-IN')}\n\nGenerated on: ${new Date().toLocaleDateString()}`;
       
-      // Create and download PDF
-      const blob = new Blob([pdfContent], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Payment-Advice-${employee?.name}-${monthName}-${payslip.year}.txt`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // Calculate salary breakdown
+      const basic = Math.floor(payslip.grossSalary * 0.5);
+      const hra = Math.floor(payslip.grossSalary * 0.3);
+      const otherAllowances = payslip.grossSalary - basic - hra;
+      
+      // Get leaves data (placeholder for now)
+      const leavesTaken = 0;
+      const leaveQuota = 2; // Default quota
+      const excessLeaves = Math.max(0, leavesTaken - leaveQuota);
+      const leaveDeduction = 0; // TODO: Calculate based on leaves
+      
+      // Prepare PDF data
+      const pdfData = {
+        employee: {
+          name: employee.name,
+          designation: employee.designation,
+          employeeId: `EMP${employee.id}`,
+          agreementRefId: employee.agreementRefId,
+        },
+        period: {
+          month: monthName,
+          year: payslip.year,
+        },
+        salary: {
+          basic,
+          hra,
+          otherAllowances,
+          gross: payslip.grossSalary,
+          tds: payslip.tds,
+          leaveDeduction,
+          netSalary: payslip.netSalary,
+        },
+        leaves: {
+          taken: leavesTaken,
+          quota: leaveQuota,
+          excess: excessLeaves,
+        },
+        settings: {
+          workingDays: 22, // Default
+          tdsRate: 10,
+        },
+      };
+
+      // Generate and download PDF
+      await generatePayslipPDF(pdfData);
       
       toast.success("Payment advice downloaded successfully");
     } catch (error) {
