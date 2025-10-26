@@ -234,9 +234,9 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
       doc.rect(margin, y, colWidth, rowHeight);
       doc.text(earnings[i].label, margin + 2, y + 4);
       doc.setFontSize(6); // Even smaller font for amounts
-      // Right align with enough padding from edge
+      // Align at the right edge of EARNINGS column
       const earningAmount = formatCurrency(earnings[i].amount);
-      doc.text(earningAmount, margin + colWidth - 5, y + 4);
+      doc.text(earningAmount, margin + colWidth - 2, y + 4);
       doc.setFontSize(8); // Reset font size
     }
 
@@ -245,9 +245,9 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
       doc.rect(margin + colWidth, y, colWidth, rowHeight);
       doc.text(deductions[i].label, margin + colWidth + 2, y + 4);
       doc.setFontSize(6); // Even smaller font for amounts
-      // Right align with enough padding from edge
+      // Align at the right edge of DEDUCTIONS column (right edge of table)
       const deductionAmount = formatCurrency(deductions[i].amount);
-      doc.text(deductionAmount, pageWidth - margin - 5, y + 4);
+      doc.text(deductionAmount, pageWidth - margin - 2, y + 4);
       doc.setFontSize(8); // Reset font size
     }
 
@@ -264,14 +264,16 @@ export async function generatePayslipPDF(data: PayslipData): Promise<void> {
   doc.text("GROSS PAYMENT", margin + 2, y + 4.5);
   doc.setFontSize(6); // Even smaller font for amounts in totals
   const grossAmount = formatCurrency(data.salary.gross);
-  doc.text(grossAmount, margin + colWidth - 5, y + 4.5);
+  // Align at the right edge of EARNINGS column
+  doc.text(grossAmount, margin + colWidth - 2, y + 4.5);
 
   const totalDeductions = data.salary.tds + data.salary.leaveDeduction;
   doc.setFontSize(7); // Reset to bold for label
   doc.text("TOTAL DEDUCTIONS", margin + colWidth + 2, y + 4.5);
   doc.setFontSize(6); // Smaller font for amounts
   const totalDeductionsAmount = formatCurrency(totalDeductions);
-  doc.text(totalDeductionsAmount, pageWidth - margin - 5, y + 4.5);
+  // Align at the right edge of DEDUCTIONS column (right edge of table)
+  doc.text(totalDeductionsAmount, pageWidth - margin - 2, y + 4.5);
 
   doc.rect(margin, y, colWidth, 7);
   doc.rect(margin + colWidth, y, colWidth, 7);
