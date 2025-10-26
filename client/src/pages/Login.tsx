@@ -1,38 +1,53 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Lock, Eye, EyeOff } from "lucide-react";
+import { Lock } from "lucide-react";
 import { APP_TITLE, APP_LOGO } from "@/const";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function LoginPage() {
   const [pin, setPin] = useState("");
-  const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState("");
   const { login, isLoading } = useAuth();
+
+  // Auto-login when PIN is complete (6 digits)
+  useEffect(() => {
+    if (pin.length === 6 && !isLoading) {
+      const attemptLogin = async () => {
+        try {
+          await login(pin);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Invalid PIN");
+          setPin(""); // Clear PIN on error
+        }
+      };
+      attemptLogin();
+    }
+  }, [pin, login, isLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     
-    try {
-      await login(pin);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
-      setPin(""); // Clear PIN on error
+    if (pin.length === 6 && !isLoading) {
+      try {
+        await login(pin);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Invalid PIN");
+        setPin(""); // Clear PIN on error
+      }
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-4">
+        <CardHeader className="text-center">
           <div className="flex justify-center">
             <img
               src={APP_LOGO}
-              className="h-16 w-16 rounded-lg object-cover ring-2 ring-border"
+              className="h-fit w-16 rounded-lg object-cover"
               alt="Logo"
             />
           </div>
@@ -45,15 +60,12 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="pin" className="text-sm font-medium">
-                PIN
-              </label>
+            <div className="space-y-2">              
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="pin"
-                  type={showPin ? "text" : "password"}
+                  type="password"
                   value={pin}
                   onChange={(e) => {
                     // Only allow numbers
@@ -76,25 +88,11 @@ export default function LoginPage() {
                     e.preventDefault();
                   }}
                   placeholder="Enter your PIN"
-                  className="pl-10 pr-10 text-center text-2xl tracking-widest font-mono"
+                  className="pl-10 pr-8 py-6 text-center text-2xl tracking-widest"
                   disabled={isLoading}
                   autoComplete="off"
                   maxLength={6}
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
-                  onClick={() => setShowPin(!showPin)}
-                  disabled={isLoading}
-                >
-                  {showPin ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </Button>
               </div>
             </div>
 
@@ -103,14 +101,6 @@ export default function LoginPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={isLoading || pin.length === 0}
-            >
-              {isLoading ? "Signing in..." : "Sign In"}
-            </Button>
           </form>
         </CardContent>
       </Card>
