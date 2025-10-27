@@ -17,7 +17,7 @@ export default function Leaves() {
   const [isLoading, setIsLoading] = useState(true);
   const [settings, setSettings] = useState({ leaveQuotaPerMonth: 2 });
 
-  // Fetch active employees
+  // Fetch active employees and load existing leaves
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
@@ -36,6 +36,37 @@ export default function Leaves() {
 
     fetchEmployees();
   }, []);
+
+  // Load existing leaves when month/year changes
+  useEffect(() => {
+    if (!selectedMonth || !selectedYear || !employees || employees.length === 0) {
+      return;
+    }
+
+    const loadExistingLeaves = async () => {
+      try {
+        const newLeaveInputs: Record<number, string> = {};
+        
+        for (const employee of employees) {
+          const leave = await api.getLeavesByMonth(
+            employee.id,
+            parseInt(selectedMonth),
+            parseInt(selectedYear)
+          );
+          
+          if (leave) {
+            newLeaveInputs[employee.id] = leave.leavesTaken.toString();
+          }
+        }
+
+        setLeaveInputs(newLeaveInputs);
+      } catch (error) {
+        console.error('Error loading leaves:', error);
+      }
+    };
+
+    loadExistingLeaves();
+  }, [selectedMonth, selectedYear, employees]);
 
   const months = [
     { value: "1", label: "January" },
@@ -92,10 +123,19 @@ export default function Leaves() {
         }
 
         try {
-          // For now, we'll just show a success message
-          // In a real implementation, you'd save to the holidays table
-          console.log(`Saving ${leavesTaken} leaves for ${employee.name} for ${selectedMonth}/${selectedYear}`);
-          successCount++;
+          // Save to database via API
+          const result = await api.createOrUpdateLeave({
+            employeeId: employee.id,
+            month: parseInt(selectedMonth),
+            year: parseInt(selectedYear),
+            leavesTaken: leavesTaken,
+          });
+
+          if (result.success) {
+            successCount++;
+          } else {
+            errorCount++;
+          }
         } catch {
           errorCount++;
         }

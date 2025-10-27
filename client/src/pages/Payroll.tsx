@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Download, Calendar as CalendarIcon, AlertTriangle } from "lucide-react";
+import { FileText, Download, Calendar as CalendarIcon, AlertTriangle, Trash } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { api, Employee, Payslip } from "@/lib/supabase";
@@ -64,30 +64,52 @@ export default function Payroll() {
     try {
       const month = parseInt(selectedMonth);
       const year = parseInt(selectedYear);
-      const tdsRate = 0.10; // 10% TDS
       
-      const newPayslips = selectedEmployees.map((employeeId) => {
-        const employee = employees.find(emp => emp.id === employeeId);
-        if (!employee) return null;
+      // Fetch settings for leave quota and TDS rate
+      const settings = await api.getSettings();
+      const leaveQuota = settings?.leaveQuotaPerMonth || 2;
+      const workingDays = settings?.workingDaysPerMonth || 22;
+      const tdsRate = (settings?.tdsRate || 10) / 100; // Convert percentage to decimal
+      
+      const newPayslips = await Promise.all(
+        selectedEmployees.map(async (employeeId) => {
+          const employee = employees.find(emp => emp.id === employeeId);
+          if (!employee) return null;
 
-        const grossSalary = employee.salary;
-        const tds = Math.floor(grossSalary * tdsRate);
-        const deductions = tds;
-        const netSalary = grossSalary - deductions;
+          const grossSalary = employee.salary;
+          
+          // Fetch leaves for this employee for the selected month/year
+          const leaveData = await api.getLeavesByMonth(employeeId, month, year);
+          const leavesTaken = leaveData?.leavesTaken || 0;
+          
+          // Calculate leave deductions
+          const excessLeaves = Math.max(0, leavesTaken - leaveQuota);
+          const dailySalary = grossSalary / workingDays;
+          const leaveDeduction = Math.floor(dailySalary * excessLeaves);
+          
+          // Calculate TDS
+          const tds = Math.floor(grossSalary * tdsRate);
+          
+          // Total deductions = TDS + Leave Deductions
+          const deductions = tds + leaveDeduction;
+          const netSalary = grossSalary - deductions;
 
-        return {
-          employeeId,
-          month,
-          year,
-          grossSalary,
-          tds,
-          deductions,
-          netSalary,
-        };
-      }).filter(Boolean) as Omit<Payslip, 'id' | 'createdAt'>[];
+          return {
+            employeeId,
+            month,
+            year,
+            grossSalary,
+            tds,
+            deductions,
+            netSalary,
+          };
+        })
+      );
 
+      const validPayslips = newPayslips.filter(Boolean) as Omit<Payslip, 'id' | 'createdAt'>[];
+      
       // Save to database
-      const result = await api.createPayslips(newPayslips);
+      const result = await api.createPayslips(validPayslips);
       
       if (result.success && result.data) {
         setPayslips(prev => [...result.data!, ...prev]);
@@ -126,11 +148,17 @@ export default function Payroll() {
       const hra = Math.floor(payslip.grossSalary * 0.3);
       const otherAllowances = payslip.grossSalary - basic - hra;
       
-      // Get leaves data (placeholder for now)
-      const leavesTaken = 0;
-      const leaveQuota = 2; // Default quota
+      // Get leaves data from database
+      const settings = await api.getSettings();
+      const leaveQuota = settings?.leaveQuotaPerMonth || 2;
+      const workingDays = settings?.workingDaysPerMonth || 22;
+      const tdsRate = settings?.tdsRate || 10;
+      
+      const leaveData = await api.getLeavesByMonth(employee.id, payslip.month, payslip.year);
+      const leavesTaken = leaveData?.leavesTaken || 0;
       const excessLeaves = Math.max(0, leavesTaken - leaveQuota);
-      const leaveDeduction = 0; // TODO: Calculate based on leaves
+      const dailySalary = payslip.grossSalary / workingDays;
+      const leaveDeduction = Math.floor(dailySalary * excessLeaves);
       
       // Prepare PDF data
       const pdfData = {
@@ -159,8 +187,8 @@ export default function Payroll() {
           excess: excessLeaves,
         },
         settings: {
-          workingDays: 22, // Default
-          tdsRate: 10,
+          workingDays,
+          tdsRate,
         },
       };
 
@@ -171,6 +199,26 @@ export default function Payroll() {
     } catch (error) {
       console.error('Error downloading payslip:', error);
       toast.error("Failed to download payment advice");
+    }
+  };
+
+  const handleDelete = async (payslipId: number) => {
+    if (!window.confirm("Are you sure you want to delete this payslip? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      const result = await api.deletePayslip(payslipId);
+      
+      if (result.success) {
+        setPayslips(prev => prev.filter(p => p.id !== payslipId));
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      console.error('Error deleting payslip:', error);
+      toast.error("Failed to delete payslip");
     }
   };
 
@@ -385,14 +433,23 @@ export default function Payroll() {
                               <p className="text-sm text-muted-foreground">Net Salary</p>
                               <p className="font-bold text-lg text-[rgb(var(--tea))]">{formatCurrency(payslip.netSalary)}</p>
                             </div>
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              onClick={() => handleDownload(payslip.id)}
-                              className="ml-4"
-                            >
-                              <Download className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center gap-2 ml-4">
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                onClick={() => handleDownload(payslip.id)}
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                onClick={() => handleDelete(payslip.id)}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       );

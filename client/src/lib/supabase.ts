@@ -34,6 +34,23 @@ export interface Payslip {
   createdAt: string
 }
 
+export interface Holiday {
+  id: number
+  employeeId: number
+  month: number
+  year: number
+  leavesTaken: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DashboardStats {
+  totalEmployees: number
+  activeEmployees: number
+  inactiveEmployees: number
+  monthlyPayroll: number
+}
+
 // Simple API functions
 export const api = {
   // Get dashboard stats
@@ -195,9 +212,109 @@ export const api = {
     }
   },
 
+  // Delete payslip
+  async deletePayslip(id: number): Promise<{ success: boolean; message: string }> {
+    try {
+      const { error } = await supabase
+        .from('payslips')
+        .delete()
+        .eq('id', id)
+
+      if (error) {
+        console.error('Error deleting payslip:', error)
+        return { success: false, message: 'Failed to delete payslip' }
+      }
+
+      return { success: true, message: 'Payslip deleted successfully' }
+    } catch (error) {
+      console.error('Error in deletePayslip:', error)
+      return { success: false, message: 'Failed to delete payslip' }
+    }
+  },
+
   // Download payslip PDF (placeholder for now)
   async downloadPayslipPdf(payslipId: number): Promise<void> {
     // In a real implementation, you'd generate PDF and trigger download
     console.log(`Would download PDF for payslip ${payslipId}`)
+  },
+
+  // Get leaves by month
+  async getLeavesByMonth(employeeId: number, month: number, year: number): Promise<Holiday | null> {
+    try {
+      const { data, error } = await supabase
+        .from('holidays')
+        .select('*')
+        .eq('employeeId', employeeId)
+        .eq('month', month)
+        .eq('year', year)
+        .single()
+
+      if (error) {
+        console.error('Error fetching leaves:', error)
+        return null
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in getLeavesByMonth:', error)
+      return null
+    }
+  },
+
+  // Create or update leave
+  async createOrUpdateLeave(leave: Omit<Holiday, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ success: boolean; message: string }> {
+    try {
+      // First check if leave record exists
+      const existing = await this.getLeavesByMonth(leave.employeeId, leave.month, leave.year)
+
+      if (existing) {
+        const { error } = await supabase
+          .from('holidays')
+          .update({ leavesTaken: leave.leavesTaken })
+          .eq('id', existing.id)
+
+        if (error) {
+          console.error('Error updating leave:', error)
+          return { success: false, message: 'Failed to update leave' }
+        }
+
+        return { success: true, message: 'Leave updated successfully' }
+      } else {
+        const { error } = await supabase
+          .from('holidays')
+          .insert([leave])
+
+        if (error) {
+          console.error('Error creating leave:', error)
+          return { success: false, message: 'Failed to create leave' }
+        }
+
+        return { success: true, message: 'Leave created successfully' }
+      }
+    } catch (error) {
+      console.error('Error in createOrUpdateLeave:', error)
+      return { success: false, message: 'Failed to save leave' }
+    }
+  },
+
+  // Get settings
+  async getSettings(): Promise<{ leaveQuotaPerMonth: number; tdsRate: number; workingDaysPerMonth: number } | null> {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .limit(1)
+        .single()
+
+      if (error) {
+        console.error('Error fetching settings:', error)
+        return { leaveQuotaPerMonth: 2, tdsRate: 10, workingDaysPerMonth: 22 }
+      }
+
+      return data || { leaveQuotaPerMonth: 2, tdsRate: 10, workingDaysPerMonth: 22 }
+    } catch (error) {
+      console.error('Error in getSettings:', error)
+      return { leaveQuotaPerMonth: 2, tdsRate: 10, workingDaysPerMonth: 22 }
+    }
   }
 }
