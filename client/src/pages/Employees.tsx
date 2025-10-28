@@ -6,8 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { Plus, Edit, Trash2, Mail, MapPin, Calendar as CalendarIcon, Briefcase } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
 import { api, Employee } from "@/lib/supabase";
 
 export default function Employees() {
@@ -16,6 +19,7 @@ export default function Employees() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [joinDate, setJoinDate] = useState<Date | undefined>(undefined);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -57,17 +61,23 @@ export default function Employees() {
       salary: "",
       status: "active",
     });
+    setJoinDate(undefined);
     setEditingEmployee(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!joinDate) {
+      toast.error("Please select a joining date");
+      return;
+    }
+    
     const data = {
       name: formData.name,
       email: formData.email,
       address: formData.address || undefined,
-      joiningDate: new Date(formData.joiningDate).toISOString(),
+      joiningDate: joinDate.toISOString(),
       designation: formData.designation,
       agreementRefId: formData.agreementRefId || undefined,
       salary: parseInt(formData.salary),
@@ -104,11 +114,13 @@ export default function Employees() {
 
   const handleEdit = (employee: any) => {
     setEditingEmployee(employee);
+    const joinDateValue = new Date(employee.joiningDate);
+    setJoinDate(joinDateValue);
     setFormData({
       name: employee.name,
       email: employee.email,
       address: employee.address || "",
-      joiningDate: new Date(employee.joiningDate).toISOString().split('T')[0],
+      joiningDate: joinDateValue.toISOString().split('T')[0],
       designation: employee.designation,
       agreementRefId: employee.agreementRefId || "",
       salary: employee.salary.toString(),
@@ -207,22 +219,56 @@ export default function Employees() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="joiningDate">Joining Date *</Label>
-                    <Input
-                      id="joiningDate"
-                      type="date"
-                      value={formData.joiningDate}
-                      onChange={(e) => setFormData({ ...formData, joiningDate: e.target.value })}
-                      required
-                    />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          type="button"
+                          className={`w-full justify-start text-left font-normal ${!joinDate && "text-muted-foreground"}`}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {joinDate ? format(joinDate, "dd-MM-yyyy") : <span>Pick a date</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={joinDate}
+                          onSelect={(date) => {
+                            setJoinDate(date);
+                            if (date) {
+                              setFormData({ ...formData, joiningDate: format(date, "yyyy-MM-dd") });
+                            }
+                          }}
+                          captionLayout="dropdown"
+                          fromYear={1990}
+                          toYear={new Date().getFullYear() + 1}
+                          formatters={{
+                            formatMonth: (date) => date.toLocaleString('en', { month: 'long' }),
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="designation">Designation *</Label>
-                    <Input
-                      id="designation"
+                    <Select
                       value={formData.designation}
-                      onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
+                      onValueChange={(value) => setFormData({ ...formData, designation: value })}
                       required
-                    />
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select designation" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Cognitive Architecture">Cognitive Architecture</SelectItem>
+                        <SelectItem value="Cognitive Vector">Cognitive Vector</SelectItem>
+                        <SelectItem value="Cognitive Intelligence">Cognitive Intelligence</SelectItem>
+                        <SelectItem value="Cognitive Interface">Cognitive Interface</SelectItem>
+                        <SelectItem value="Quantum Coder">Quantum Coder</SelectItem>
+                        <SelectItem value="Truth Miner- Data Scientist">Truth Miner- Data Scientist</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 

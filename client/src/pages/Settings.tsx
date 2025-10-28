@@ -11,6 +11,10 @@ export default function Settings() {
     leaveQuotaPerMonth: "2",
     tdsRate: "10",
     workingDaysPerMonth: "22",
+    clAllocation: "12",
+    slAllocation: "12",
+    plAllocation: "15",
+    lwpAllocation: "0",
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -23,6 +27,10 @@ export default function Settings() {
       leaveQuotaPerMonth: "2",
       tdsRate: "10", 
       workingDaysPerMonth: "22",
+      clAllocation: "12",
+      slAllocation: "12",
+      plAllocation: "15",
+      lwpAllocation: "0",
     });
   }, []);
 
@@ -128,6 +136,100 @@ export default function Settings() {
                 <Button type="submit" disabled={isSaving} className="w-full sm:w-auto">
                   <Save className="h-4 w-4 mr-2" />
                   {isSaving ? "Saving..." : "Save Settings"}
+                </Button>
+              </div>
+            </form>
+          </div>
+
+          {/* Leave Type Allocations */}
+          <div className="bento-card mt-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 rounded-xl bg-[rgb(var(--tea))]/10">
+                <SettingsIcon className="h-6 w-6 text-[rgb(var(--tea))]" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold">Annual Leave Allocations</h2>
+                <p className="text-sm text-muted-foreground">
+                  Configure yearly leave entitlements by type
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="clAllocation">Casual Leave (CL) - Annual</Label>
+                  <Input
+                    id="clAllocation"
+                    type="number"
+                    min="0"
+                    value={formData.clAllocation}
+                    onChange={(e) =>
+                      setFormData({ ...formData, clAllocation: e.target.value })
+                    }
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Annual allocation for casual leaves (default: 12 days)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="slAllocation">Sick Leave (SL) - Annual</Label>
+                  <Input
+                    id="slAllocation"
+                    type="number"
+                    min="0"
+                    value={formData.slAllocation}
+                    onChange={(e) =>
+                      setFormData({ ...formData, slAllocation: e.target.value })
+                    }
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Annual allocation for sick leaves (default: 12 days)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="plAllocation">Privilege Leave (PL) - Annual</Label>
+                  <Input
+                    id="plAllocation"
+                    type="number"
+                    min="0"
+                    value={formData.plAllocation}
+                    onChange={(e) =>
+                      setFormData({ ...formData, plAllocation: e.target.value })
+                    }
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Annual allocation for privilege/earned leaves (default: 15 days)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="lwpAllocation">Leave Without Pay (LWP)</Label>
+                  <Input
+                    id="lwpAllocation"
+                    type="number"
+                    min="0"
+                    value={formData.lwpAllocation}
+                    onChange={(e) =>
+                      setFormData({ ...formData, lwpAllocation: e.target.value })
+                    }
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Unlimited (leave without salary)
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-border">
+                <Button type="submit" disabled={isSaving} className="w-full sm:w-auto">
+                  <Save className="h-4 w-4 mr-2" />
+                  {isSaving ? "Saving..." : "Save Leave Allocations"}
                 </Button>
               </div>
             </form>

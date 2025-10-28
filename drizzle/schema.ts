@@ -79,12 +79,37 @@ export const holidays = pgTable("holidays", {
   month: integer("month").notNull(), // 1-12
   year: integer("year").notNull(),
   leavesTaken: integer("leavesTaken").notNull().default(0),
+  // New fields for detailed leave tracking
+  leaveType: varchar("leaveType", { length: 20 }), // CL, SL, PL, HalfDay, LWP
+  startDate: timestamp("startDate"), // When leave starts
+  endDate: timestamp("endDate"), // When leave ends
+  numberOfDays: varchar("numberOfDays", { length: 10 }), // e.g. "1" or "0.5" for half day
+  reason: text("reason"), // Reason for leave
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
 
 export type Holiday = typeof holidays.$inferSelect;
 export type InsertHoliday = typeof holidays.$inferInsert;
+
+/**
+ * Leave balances table - tracks annual leave allocations and usage
+ */
+export const leaveBalances = pgTable("leaveBalances", {
+  id: serial("id").primaryKey(),
+  employeeId: integer("employeeId").notNull(),
+  leaveType: varchar("leaveType", { length: 20 }).notNull(), // CL, SL, PL, LWP
+  year: integer("year").notNull(),
+  totalAllocated: integer("totalAllocated").notNull().default(0), // Annual allocation
+  used: integer("used").notNull().default(0), // Days used
+  balance: integer("balance").notNull().default(0), // Remaining balance
+  carriedForward: integer("carriedForward").notNull().default(0), // From previous year
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type LeaveBalance = typeof leaveBalances.$inferSelect;
+export type InsertLeaveBalance = typeof leaveBalances.$inferInsert;
 
 /**
  * Salary history table - tracks salary changes over time
@@ -134,4 +159,20 @@ export const settings = pgTable("settings", {
 
 export type Settings = typeof settings.$inferSelect;
 export type InsertSettings = typeof settings.$inferInsert;
+
+/**
+ * Company holidays table - manages national, regional, and optional holidays
+ */
+export const companyHolidays = pgTable("companyHolidays", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  date: timestamp("date").notNull(),
+  type: varchar("type", { length: 20 }).default("National"), // National, Regional, Optional
+  isActive: boolean("isActive").default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type CompanyHoliday = typeof companyHolidays.$inferSelect;
+export type InsertCompanyHoliday = typeof companyHolidays.$inferInsert;
 

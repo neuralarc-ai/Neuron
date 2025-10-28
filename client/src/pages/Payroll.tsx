@@ -316,6 +316,30 @@ export default function Payroll() {
                 <div className="space-y-2">
                   <Label>Select Employees *</Label>
                   <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-2">
+                    {/* Select All Checkbox */}
+                    <div className="flex items-center space-x-2 pb-2 mb-2 border-b border-border">
+                      <Checkbox
+                        id="select-all"
+                        checked={selectedEmployees.length > 0 && selectedEmployees.length === employees.filter(emp => emp.status === 'active').length}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            const allActiveEmployeeIds = employees
+                              .filter(emp => emp.status === 'active')
+                              .map(emp => emp.id);
+                            setSelectedEmployees(allActiveEmployeeIds);
+                          } else {
+                            setSelectedEmployees([]);
+                          }
+                        }}
+                      />
+                      <Label
+                        htmlFor="select-all"
+                        className="flex-1 cursor-pointer font-semibold"
+                      >
+                        Select All Employees
+                      </Label>
+                    </div>
+                    
                     {employees.filter(emp => emp.status === 'active').map((employee) => (
                       <div key={employee.id} className="flex items-center space-x-2">
                         <Checkbox

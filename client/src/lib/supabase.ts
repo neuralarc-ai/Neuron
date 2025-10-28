@@ -40,6 +40,11 @@ export interface Holiday {
   month: number
   year: number
   leavesTaken: number
+  leaveType?: string
+  startDate?: string
+  endDate?: string
+  numberOfDays?: string
+  reason?: string
   createdAt: string
   updatedAt: string
 }
@@ -298,7 +303,7 @@ export const api = {
   },
 
   // Get settings
-  async getSettings(): Promise<{ leaveQuotaPerMonth: number; tdsRate: number; workingDaysPerMonth: number } | null> {
+  async getSettings(): Promise<any> {
     try {
       const { data, error } = await supabase
         .from('settings')
@@ -308,13 +313,264 @@ export const api = {
 
       if (error) {
         console.error('Error fetching settings:', error)
-        return { leaveQuotaPerMonth: 2, tdsRate: 10, workingDaysPerMonth: 22 }
+        return { leaveQuotaPerMonth: 2, tdsRate: 10, workingDaysPerMonth: 22, clAllocation: 12, slAllocation: 12, plAllocation: 15, lwpAllocation: 0 }
       }
 
-      return data || { leaveQuotaPerMonth: 2, tdsRate: 10, workingDaysPerMonth: 22 }
+      return data || { leaveQuotaPerMonth: 2, tdsRate: 10, workingDaysPerMonth: 22, clAllocation: 12, slAllocation: 12, plAllocation: 15, lwpAllocation: 0 }
     } catch (error) {
       console.error('Error in getSettings:', error)
-      return { leaveQuotaPerMonth: 2, tdsRate: 10, workingDaysPerMonth: 22 }
+      return { leaveQuotaPerMonth: 2, tdsRate: 10, workingDaysPerMonth: 22, clAllocation: 12, slAllocation: 12, plAllocation: 15, lwpAllocation: 0 }
+    }
+  },
+
+  // Create leave entry (detailed with dates)
+  async createLeave(leaveData: {
+    employeeId: number;
+    leaveType: string;
+    startDate: string;
+    endDate: string;
+    numberOfDays: number;
+    reason?: string;
+  }): Promise<{ success: boolean; message: string }> {
+    try {
+      const start = new Date(leaveData.startDate);
+      const end = new Date(leaveData.endDate);
+      const month = start.getMonth() + 1;
+      const year = start.getFullYear();
+
+      // Insert leave record
+      const { error: insertError } = await supabase
+        .from('holidays')
+        .insert([{
+          employeeId: leaveData.employeeId,
+          month,
+          year,
+          leavesTaken: Math.floor(leaveData.numberOfDays),
+          leaveType: leaveData.leaveType,
+          startDate: leaveData.startDate,
+          endDate: leaveData.endDate,
+          numberOfDays: leaveData.numberOfDays.toString(),
+          reason: leaveData.reason || null,
+        }])
+
+      if (insertError) {
+        console.error('Error creating leave:', insertError)
+        return { success: false, message: 'Failed to create leave' }
+      }
+
+      // Update leave balance
+      if (leaveData.leaveType && leaveData.leaveType !== 'LWP') {
+        // Initialize balance first if it doesn't exist
+        await this.initializeLeaveBalance(leaveData.employeeId, year);
+        
+        // Get current balance
+        const { data: balances } = await supabase
+          .from('leaveBalances')
+          .select('*')
+          .eq('employeeId', leaveData.employeeId)
+          .eq('leaveType', leaveData.leaveType)
+          .eq('year', year)
+
+        if (balances && balances.length > 0) {
+          const currentBalance = balances[0];
+          // Update existing balance
+          const daysToAdd = Math.ceil(leaveData.numberOfDays);
+          const newUsed = currentBalance.used + daysToAdd;
+          const newBalance = currentBalance.totalAllocated + currentBalance.carriedForward - newUsed;
+          
+          await supabase
+            .from('leaveBalances')
+            .update({
+              used: newUsed,
+              balance: newBalance,
+            })
+            .eq('id', currentBalance.id)
+        }
+      }
+
+      return { success: true, message: 'Leave created successfully' }
+    } catch (error) {
+      console.error('Error in createLeave:', error)
+      return { success: false, message: 'Failed to create leave' }
+    }
+  },
+
+  // Delete leave entry and update balance
+  async deleteLeave(leaveId: number): Promise<{ success: boolean; message: string }> {
+    try {
+      // First, get the leave record to retrieve employee ID, leave type, and days
+      const { data: leave, error: fetchError } = await supabase
+        .from('holidays')
+        .select('*')
+        .eq('id', leaveId)
+        .single()
+
+      if (fetchError || !leave) {
+        console.error('Error fetching leave:', fetchError)
+        return { success: false, message: 'Failed to find leave record' }
+      }
+
+      const year = leave.year;
+      const leaveType = leave.leaveType;
+      const numberOfDays = parseFloat(leave.numberOfDays || leave.leavesTaken?.toString() || '0') || 0;
+      const employeeId = leave.employeeId;
+
+      // Delete the leave record
+      const { error: deleteError } = await supabase
+        .from('holidays')
+        .delete()
+        .eq('id', leaveId)
+
+      if (deleteError) {
+        console.error('Error deleting leave:', deleteError)
+        return { success: false, message: 'Failed to delete leave' }
+      }
+
+      // Update leave balance - reverse the deduction
+      if (leaveType && leaveType !== 'LWP') {
+        // Get current balance
+        const { data: balances } = await supabase
+          .from('leaveBalances')
+          .select('*')
+          .eq('employeeId', employeeId)
+          .eq('leaveType', leaveType)
+          .eq('year', year)
+
+        if (balances && balances.length > 0) {
+          const currentBalance = balances[0];
+          // Reverse the deduction: reduce used count and increase balance
+          const daysToRemove = Math.ceil(numberOfDays);
+          const newUsed = Math.max(0, currentBalance.used - daysToRemove);
+          const newBalance = currentBalance.totalAllocated + currentBalance.carriedForward - newUsed;
+          
+          await supabase
+            .from('leaveBalances')
+            .update({
+              used: newUsed,
+              balance: newBalance,
+            })
+            .eq('id', currentBalance.id)
+        }
+      }
+
+      return { success: true, message: 'Leave deleted successfully' }
+    } catch (error) {
+      console.error('Error in deleteLeave:', error)
+      return { success: false, message: 'Failed to delete leave' }
+    }
+  },
+
+  // Get leave balance for an employee
+  async getLeaveBalance(employeeId: number, year: number): Promise<Record<string, { allocated: number; used: number; balance: number }>> {
+    try {
+      const { data, error } = await supabase
+        .from('leaveBalances')
+        .select('*')
+        .eq('employeeId', employeeId)
+        .eq('year', year)
+
+      if (error) {
+        console.error('Error fetching leave balance:', error)
+        return {}
+      }
+
+      const balance: Record<string, { allocated: number; used: number; balance: number }> = {};
+      data?.forEach(b => {
+        balance[b.leaveType] = {
+          allocated: b.totalAllocated,
+          used: b.used,
+          balance: b.balance,
+        }
+      })
+
+      return balance
+    } catch (error) {
+      console.error('Error in getLeaveBalance:', error)
+      return {}
+    }
+  },
+
+  // Get leaves by employee
+  async getLeavesByEmployee(employeeId: number): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('holidays')
+        .select('*')
+        .eq('employeeId', employeeId)
+        .order('year', { ascending: false })
+        .order('month', { ascending: false })
+        .order('startDate', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching leaves by employee:', error)
+        return []
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error in getLeavesByEmployee:', error)
+      return []
+    }
+  },
+
+  // Initialize leave balance for an employee
+  async initializeLeaveBalance(employeeId: number, year: number): Promise<void> {
+    try {
+      // Check if balance already exists
+      const { data: existing } = await supabase
+        .from('leaveBalances')
+        .select('*')
+        .eq('employeeId', employeeId)
+        .eq('year', year)
+
+      if (!existing || existing.length === 0) {
+        // Get settings for default allocations
+        const settings = await this.getSettings();
+        const clAllocation = settings?.clAllocation || 12;
+        const slAllocation = settings?.slAllocation || 12;
+        const plAllocation = settings?.plAllocation || 15;
+        
+        const leaveTypes = [
+          { leaveType: 'CL', totalAllocated: clAllocation },
+          { leaveType: 'SL', totalAllocated: slAllocation },
+          { leaveType: 'PL', totalAllocated: plAllocation },
+        ];
+
+        for (const type of leaveTypes) {
+          await supabase.from('leaveBalances').insert([{
+            employeeId,
+            leaveType: type.leaveType,
+            year,
+            totalAllocated: type.totalAllocated,
+            used: 0,
+            balance: type.totalAllocated,
+            carriedForward: 0,
+          }])
+        }
+      }
+    } catch (error) {
+      console.error('Error in initializeLeaveBalance:', error)
+    }
+  },
+
+  // Get company holidays
+  async getCompanyHolidays(): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('companyHolidays')
+        .select('*')
+        .eq('isActive', true)
+        .order('date')
+
+      if (error) {
+        console.error('Error fetching company holidays:', error)
+        return []
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error in getCompanyHolidays:', error)
+      return []
     }
   }
 }
