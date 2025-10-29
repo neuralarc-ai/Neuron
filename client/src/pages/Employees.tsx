@@ -78,6 +78,11 @@ export default function Employees() {
   };
 
   const canGoToNextStep = () => {
+    if (editingEmployee) {
+      // When editing, allow navigation to next step regardless of validation
+      return currentStep < 3;
+    }
+    // When creating new employee, require validation
     return currentStep < 3 && isCurrentStepValid();
   };
 
@@ -186,6 +191,13 @@ export default function Employees() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('Form submit triggered:', {
+      editingEmployee: !!editingEmployee,
+      currentStep,
+      isSubmitting,
+      timestamp: new Date().toISOString()
+    });
+    
     if (!joinDate) {
       toast.error("Please select a joining date");
       return;
@@ -216,7 +228,7 @@ export default function Employees() {
       aadhaarNumber: formData.aadhaarNumber || undefined,
       panNumber: formData.panNumber || undefined,
       phoneNumber: formData.phoneNumber || undefined,
-      dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth).toISOString() : undefined,
+      dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth) : undefined,
       bankAccountNumber: formData.bankAccountNumber || undefined,
       ifscCode: formData.ifscCode || undefined,
       bankName: formData.bankName || undefined,
@@ -318,7 +330,7 @@ export default function Employees() {
       setKycDocuments(docs);
     }
     
-    setCurrentStep(0); // Reset to first step when editing
+    setCurrentStep(3); // Start on last step when editing to show all information
     setOpen(true);
   };
 
@@ -511,7 +523,7 @@ export default function Employees() {
               <DialogHeader>
                 <DialogTitle>{editingEmployee ? "Edit Employee" : "Add New Employee"}</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form className="space-y-4">
                 {/* Step Navigation */}
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center space-x-2">
@@ -519,13 +531,22 @@ export default function Employees() {
                       {[0, 1, 2, 3].map((step) => (
                         <div
                           key={step}
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium cursor-pointer transition-colors ${
                             step === currentStep
                               ? 'bg-blue-600 text-white'
                               : step < currentStep
-                              ? 'bg-green-600 text-white'
-                              : 'bg-gray-200 text-gray-600'
+                              ? 'bg-green-600 text-white hover:bg-green-700'
+                              : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
                           }`}
+                          onClick={() => {
+                            if (editingEmployee) {
+                              // Allow direct navigation when editing
+                              setCurrentStep(step);
+                            } else if (step <= currentStep) {
+                              // When creating, only allow going back or staying on current step
+                              setCurrentStep(step);
+                            }
+                          }}
                         >
                           {step + 1}
                         </div>
@@ -978,9 +999,30 @@ export default function Employees() {
                   
                   <div className="flex gap-2">
                     {editingEmployee ? (
-                      <Button type="submit" disabled={isSubmitting}>
-                        {isSubmitting ? "Updating..." : "Update Employee"}
-                      </Button>
+                      <>
+                        {canGoToNextStep() ? (
+                          <Button type="button" onClick={handleNextStep}>
+                            Next
+                          </Button>
+                        ) : currentStep === 3 ? (
+                          <Button 
+                            type="button" 
+                            disabled={isSubmitting}
+                            onClick={async (e) => {
+                              console.log('Update Employee button clicked');
+                              e.preventDefault();
+                              setIsSubmitting(true);
+                              await handleSubmit(e as any);
+                            }}
+                          >
+                            {isSubmitting ? "Updating..." : "Update Employee"}
+                          </Button>
+                        ) : (
+                          <Button type="button" disabled>
+                            Complete Required Fields
+                          </Button>
+                        )}
+                      </>
                     ) : (
                       <>
                         {canGoToNextStep() ? (
@@ -988,7 +1030,16 @@ export default function Employees() {
                             Next
                           </Button>
                         ) : currentStep === 3 && isEmergencyDetailsValid() ? (
-                          <Button type="submit" disabled={isSubmitting}>
+                          <Button 
+                            type="button" 
+                            disabled={isSubmitting}
+                            onClick={async (e) => {
+                              console.log('Create Employee button clicked');
+                              e.preventDefault();
+                              setIsSubmitting(true);
+                              await handleSubmit(e as any);
+                            }}
+                          >
                             {isSubmitting ? "Creating..." : "Create Employee"}
                           </Button>
                         ) : (

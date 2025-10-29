@@ -63,6 +63,24 @@ export const appRouter = router({
         designation: z.string(),
         salary: z.number(),
         status: z.enum(["active", "inactive"]),
+        // KYC fields
+        aadhaarNumber: z.string().optional(),
+        panNumber: z.string().optional(),
+        phoneNumber: z.string().optional(),
+        dateOfBirth: z.date().optional(),
+        // Bank details
+        bankAccountNumber: z.string().optional(),
+        ifscCode: z.string().optional(),
+        bankName: z.string().optional(),
+        bankBranch: z.string().optional(),
+        // Emergency contact
+        emergencyContactName: z.string().optional(),
+        emergencyContactPhone: z.string().optional(),
+        emergencyContactRelation: z.string().optional(),
+        // Nominee details
+        nomineeName: z.string().optional(),
+        nomineeRelation: z.string().optional(),
+        nomineeAadhaar: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         try {
