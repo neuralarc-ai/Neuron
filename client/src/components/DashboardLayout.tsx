@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, FileText, Calendar, Settings, UserCog } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, FileText, Calendar, Settings, UserCog, DollarSign } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -33,7 +33,7 @@ const menuItems = [
   { icon: Users, label: "Employees", path: "/employees" },
   { icon: Calendar, label: "Leaves", path: "/leaves" },
   { icon: FileText, label: "Payroll", path: "/payroll" },
-
+  { icon: DollarSign, label: "Revenue", path: "/revenue" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
 

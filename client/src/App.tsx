@@ -11,7 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Employees from "./pages/Employees";
 import Leaves from "./pages/Leaves";
 import Payroll from "./pages/Payroll";
-
+import Revenue from "./pages/Revenue";
 import Settings from "./pages/Settings";
 
 function Router() {
@@ -25,6 +25,7 @@ function Router() {
         <Route path="/employees" component={Employees} />
         <Route path="/leaves" component={Leaves} />
         <Route path="/payroll" component={Payroll} />
+        <Route path="/revenue" component={Revenue} />
         <Route path="/settings" component={Settings} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

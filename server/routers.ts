@@ -4,9 +4,11 @@ import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
 import { generatePayslipPDF } from "./payslipPdf";
+import { accountingRouter } from "./routers/accounting.router";
 
 export const appRouter = router({
   system: systemRouter,
+  accounting: accountingRouter,
 
   dashboard: router({
     stats: publicProcedure.query(async () => {

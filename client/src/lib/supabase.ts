@@ -1,21 +1,65 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 // Supabase configuration
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co'
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true
-  }
-})
+// Validate environment variables
+let supabase: SupabaseClient
+
+if (!supabaseUrl || !supabaseKey) {
+  const missingVars = []
+  if (!supabaseUrl) missingVars.push('VITE_SUPABASE_URL')
+  if (!supabaseKey) missingVars.push('VITE_SUPABASE_ANON_KEY')
+  
+  console.error(
+    `❌ Missing Supabase environment variables: ${missingVars.join(', ')}\n` +
+    `Please set these in your .env file:\n` +
+    `VITE_SUPABASE_URL=https://your-project.supabase.co\n` +
+    `VITE_SUPABASE_ANON_KEY=your-anon-key\n\n` +
+    `Get these values from: Supabase Dashboard → Settings → API`
+  )
+  
+  // Create a dummy client to prevent errors, but auth will fail gracefully
+  const dummyUrl = 'https://placeholder.supabase.co'
+  const dummyKey = 'dummy-key'
+  
+  supabase = createClient(dummyUrl, dummyKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false
+  }}) as any // Type assertion to prevent TypeScript errors
+} else {
+  supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true
+    }
+  })
+}
+
+export { supabase }
 
 // Authentication helper functions
 export const auth = {
   // Sign in with email and password
   async signIn(email: string, password: string) {
+    // Check if Supabase is configured
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+    
+    if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('placeholder') || supabaseKey === 'dummy-key') {
+      return {
+        data: null,
+        error: {
+          message: 'Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.',
+          name: 'ConfigurationError'
+        }
+      }
+    }
+    
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
@@ -31,6 +75,20 @@ export const auth = {
 
   // Get current user
   async getCurrentUser() {
+    // Check if Supabase is configured
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+    
+    if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('placeholder') || supabaseKey === 'dummy-key') {
+      return {
+        user: null,
+        error: {
+          message: 'Supabase is not configured',
+          name: 'ConfigurationError'
+        }
+      }
+    }
+    
     const { data: { user }, error } = await supabase.auth.getUser()
     return { user, error }
   },
