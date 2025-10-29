@@ -1,9 +1,47 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
 import session from "express-session";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
+
+// Load .env from project root
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, "../..");
+
+// Debug: Log environment variable loading
+console.log("[Server] Loading environment variables...");
+console.log("[Server] Project root:", projectRoot);
+const envResult = dotenv.config({ path: path.join(projectRoot, ".env") });
+if (envResult.error) {
+  console.error("[Server] ❌ Error loading .env file:", envResult.error);
+} else {
+  console.log("[Server] ✅ .env file loaded successfully");
+}
+
+console.log("[Server] SUPABASE_URL exists:", !!(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL));
+console.log("[Server] SUPABASE_SECRET_KEY exists:", !!(process.env.SUPABASE_SECRET_KEY || process.env.VITE_SUPABASE_SECRET_KEY));
+console.log("[Server] SUPABASE_KEY exists:", !!process.env.SUPABASE_KEY);
+console.log("[Server] SUPABASE_SERVICE_ROLE_KEY exists:", !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY));
+console.log("[Server] VITE_SUPABASE_URL exists:", !!process.env.VITE_SUPABASE_URL);
+console.log("[Server] VITE_SUPABASE_SERVICE_ROLE_KEY exists:", !!process.env.VITE_SUPABASE_SERVICE_ROLE_KEY);
+
+const finalUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const finalKey = process.env.SUPABASE_KEY 
+  || process.env.SUPABASE_SERVICE_ROLE_KEY 
+  || process.env.SUPABASE_SECRET_KEY
+  || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+  || process.env.VITE_SUPABASE_SECRET_KEY;
+
+if (finalUrl) {
+  console.log("[Server] Using SUPABASE_URL:", finalUrl.substring(0, 40) + "...");
+}
+if (finalKey) {
+  console.log("[Server] Using Supabase key:", "Found (" + finalKey.substring(0, 20) + "...)");
+}
 
 import { appRouter } from "../routers";
 import { createContext } from "./context";

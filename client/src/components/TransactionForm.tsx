@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,9 +32,33 @@ export function TransactionForm() {
     { accountId: 0, description: "", debit: 0, credit: 0 },
   ]);
 
-  const { data: accounts } = trpc.accounting.getAccounts.useQuery();
-  const { data: categories } = trpc.accounting.getCategories.useQuery();
-  const { data: vendors } = trpc.accounting.getVendors.useQuery();
+  const { data: accounts, isLoading: accountsLoading, error: accountsError } = trpc.accounting.getAccounts.useQuery();
+  const { data: categories, isLoading: categoriesLoading, error: categoriesError } = trpc.accounting.getCategories.useQuery();
+  const { data: vendors, isLoading: vendorsLoading, error: vendorsError } = trpc.accounting.getVendors.useQuery();
+
+  // Log errors and data for debugging
+  useEffect(() => {
+    if (accountsError) {
+      console.error("[TransactionForm] Accounts query error:", accountsError);
+    }
+    if (categoriesError) {
+      console.error("[TransactionForm] Categories query error:", categoriesError);
+    }
+    if (vendorsError) {
+      console.error("[TransactionForm] Vendors query error:", vendorsError);
+    }
+    
+    // Log data when it's loaded
+    if (accounts) {
+      console.log("[TransactionForm] Accounts loaded:", accounts.length, accounts);
+    }
+    if (categories) {
+      console.log("[TransactionForm] Categories loaded:", categories.length, categories);
+    }
+    if (vendors) {
+      console.log("[TransactionForm] Vendors loaded:", vendors.length, vendors);
+    }
+  }, [accounts, categories, vendors, accountsError, categoriesError, vendorsError]);
 
   const createTransaction = trpc.accounting.createTransaction.useMutation({
     onSuccess: () => {
@@ -124,12 +148,12 @@ export function TransactionForm() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="status">Status *</Label>
+              <Label>Status *</Label>
               <Select
                 value={status}
                 onValueChange={(value) => setStatus(value as "draft" | "posted")}
               >
-                <SelectTrigger>
+                <SelectTrigger id="status" aria-label="Transaction status">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -189,20 +213,27 @@ export function TransactionForm() {
                   <div className="space-y-2">
                     <Label>Account *</Label>
                     <Select
-                      value={entry.accountId?.toString() || ""}
+                      value={entry.accountId && entry.accountId > 0 ? entry.accountId.toString() : undefined}
                       onValueChange={(value) =>
-                        updateEntry(index, "accountId", parseInt(value))
+                        updateEntry(index, "accountId", parseInt(value) || 0)
                       }
+                      disabled={accountsLoading}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select account" />
+                        <SelectValue placeholder={accountsLoading ? "Loading..." : "Select account"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {accounts?.map((account) => (
-                          <SelectItem key={account.id} value={account.id.toString()}>
-                            {account.code} - {account.name}
-                          </SelectItem>
-                        ))}
+                        {accountsLoading ? (
+                          <SelectItem value="loading" disabled>Loading accounts...</SelectItem>
+                        ) : accounts && accounts.length > 0 ? (
+                          accounts.map((account) => (
+                            <SelectItem key={account.id} value={account.id.toString()}>
+                              {account.code} - {account.name}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no-accounts" disabled>No accounts available</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -210,20 +241,27 @@ export function TransactionForm() {
                   <div className="space-y-2">
                     <Label>Category</Label>
                     <Select
-                      value={entry.categoryId?.toString() || ""}
+                      value={entry.categoryId && entry.categoryId > 0 ? entry.categoryId.toString() : undefined}
                       onValueChange={(value) =>
-                        updateEntry(index, "categoryId", parseInt(value))
+                        updateEntry(index, "categoryId", value ? parseInt(value) : undefined)
                       }
+                      disabled={categoriesLoading}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
+                        <SelectValue placeholder={categoriesLoading ? "Loading..." : "Select category (optional)"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {categories?.map((category) => (
-                          <SelectItem key={category.id} value={category.id.toString()}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
+                        {categoriesLoading ? (
+                          <SelectItem value="loading" disabled>Loading categories...</SelectItem>
+                        ) : categories && categories.length > 0 ? (
+                          categories.map((category) => (
+                            <SelectItem key={category.id} value={category.id.toString()}>
+                              {category.name}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no-categories" disabled>No categories available</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -235,41 +273,68 @@ export function TransactionForm() {
                     <Input
                       value={entry.description}
                       onChange={(e) => updateEntry(index, "description", e.target.value)}
-                      placeholder="Entry description"
+                      placeholder="Entry description (optional)"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label>Vendor</Label>
+                    <Select
+                      value={entry.vendorId && entry.vendorId > 0 ? entry.vendorId.toString() : undefined}
+                      onValueChange={(value) =>
+                        updateEntry(index, "vendorId", value ? parseInt(value) : undefined)
+                      }
+                      disabled={vendorsLoading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={vendorsLoading ? "Loading..." : "Select vendor (optional)"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {vendorsLoading ? (
+                          <SelectItem value="loading" disabled>Loading vendors...</SelectItem>
+                        ) : vendors && vendors.length > 0 ? (
+                          vendors.map((vendor) => (
+                            <SelectItem key={vendor.id} value={vendor.id.toString()}>
+                              {vendor.name}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no-vendors" disabled>No vendors available</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-2">
-                      <Label>Debit</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={entry.debit || ""}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value) || 0;
-                          updateEntry(index, "debit", val);
-                          updateEntry(index, "credit", 0);
-                        }}
-                        placeholder="0.00"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Credit</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={entry.credit || ""}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value) || 0;
-                          updateEntry(index, "credit", val);
-                          updateEntry(index, "debit", 0);
-                        }}
-                        placeholder="0.00"
-                      />
-                    </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-2">
+                    <Label>Debit</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={entry.debit || ""}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        updateEntry(index, "debit", val);
+                        updateEntry(index, "credit", 0);
+                      }}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Credit</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={entry.credit || ""}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        updateEntry(index, "credit", val);
+                        updateEntry(index, "debit", 0);
+                      }}
+                      placeholder="0.00"
+                    />
                   </div>
                 </div>
               </div>

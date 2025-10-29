@@ -1,20 +1,18 @@
 -- ============================================================
 -- Accounting Module Migration
 -- Run this script in your Supabase SQL Editor
+-- Tables are created in the PUBLIC schema for compatibility
 -- ============================================================
-
--- Create accounting schema
-CREATE SCHEMA IF NOT EXISTS accounting;
 
 -- ============================================================
 -- Accounts Table
 -- ============================================================
-CREATE TABLE IF NOT EXISTS accounting.accounts (
+CREATE TABLE IF NOT EXISTS accounting_accounts (
   id SERIAL PRIMARY KEY,
   code VARCHAR(50) UNIQUE NOT NULL,
   name VARCHAR(255) NOT NULL,
   type VARCHAR(50) NOT NULL, -- 'asset', 'liability', 'equity', 'revenue', 'expense'
-  parent_id INTEGER REFERENCES accounting.accounts(id) ON DELETE SET NULL,
+  parent_id INTEGER REFERENCES accounting_accounts(id) ON DELETE SET NULL,
   balance DECIMAL(15, 2) DEFAULT 0 NOT NULL,
   is_active BOOLEAN DEFAULT true NOT NULL,
   created_at TIMESTAMP DEFAULT NOW() NOT NULL,
@@ -24,7 +22,7 @@ CREATE TABLE IF NOT EXISTS accounting.accounts (
 -- ============================================================
 -- Categories Table
 -- ============================================================
-CREATE TABLE IF NOT EXISTS accounting.categories (
+CREATE TABLE IF NOT EXISTS accounting_categories (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) UNIQUE NOT NULL,
   description TEXT,
@@ -37,7 +35,7 @@ CREATE TABLE IF NOT EXISTS accounting.categories (
 -- ============================================================
 -- Vendors Table
 -- ============================================================
-CREATE TABLE IF NOT EXISTS accounting.vendors (
+CREATE TABLE IF NOT EXISTS accounting_vendors (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   contact_person VARCHAR(255),
@@ -53,7 +51,7 @@ CREATE TABLE IF NOT EXISTS accounting.vendors (
 -- ============================================================
 -- Transactions Table
 -- ============================================================
-CREATE TABLE IF NOT EXISTS accounting.transactions (
+CREATE TABLE IF NOT EXISTS accounting_transactions (
   id SERIAL PRIMARY KEY,
   transaction_number VARCHAR(100) UNIQUE NOT NULL,
   date DATE NOT NULL,
@@ -71,12 +69,12 @@ CREATE TABLE IF NOT EXISTS accounting.transactions (
 -- ============================================================
 -- Entries Table (Double-entry bookkeeping)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS accounting.entries (
+CREATE TABLE IF NOT EXISTS accounting_entries (
   id SERIAL PRIMARY KEY,
-  transaction_id INTEGER NOT NULL REFERENCES accounting.transactions(id) ON DELETE CASCADE,
-  account_id INTEGER NOT NULL REFERENCES accounting.accounts(id),
-  category_id INTEGER REFERENCES accounting.categories(id),
-  vendor_id INTEGER REFERENCES accounting.vendors(id),
+  transaction_id INTEGER NOT NULL REFERENCES accounting_transactions(id) ON DELETE CASCADE,
+  account_id INTEGER NOT NULL REFERENCES accounting_accounts(id),
+  category_id INTEGER REFERENCES accounting_categories(id),
+  vendor_id INTEGER REFERENCES accounting_vendors(id),
   description TEXT,
   debit DECIMAL(15, 2) DEFAULT 0 NOT NULL,
   credit DECIMAL(15, 2) DEFAULT 0 NOT NULL,
@@ -88,9 +86,9 @@ CREATE TABLE IF NOT EXISTS accounting.entries (
 -- ============================================================
 -- Attachments Table
 -- ============================================================
-CREATE TABLE IF NOT EXISTS accounting.attachments (
+CREATE TABLE IF NOT EXISTS accounting_attachments (
   id SERIAL PRIMARY KEY,
-  transaction_id INTEGER NOT NULL REFERENCES accounting.transactions(id) ON DELETE CASCADE,
+  transaction_id INTEGER NOT NULL REFERENCES accounting_transactions(id) ON DELETE CASCADE,
   file_name VARCHAR(255) NOT NULL,
   file_path TEXT NOT NULL,
   file_size BIGINT,
@@ -102,17 +100,17 @@ CREATE TABLE IF NOT EXISTS accounting.attachments (
 -- ============================================================
 -- Indexes
 -- ============================================================
-CREATE INDEX IF NOT EXISTS idx_transactions_date ON accounting.transactions(date);
-CREATE INDEX IF NOT EXISTS idx_transactions_status ON accounting.transactions(status);
-CREATE INDEX IF NOT EXISTS idx_entries_transaction_id ON accounting.entries(transaction_id);
-CREATE INDEX IF NOT EXISTS idx_entries_account_id ON accounting.entries(account_id);
-CREATE INDEX IF NOT EXISTS idx_entries_category_id ON accounting.entries(category_id);
-CREATE INDEX IF NOT EXISTS idx_attachments_transaction_id ON accounting.attachments(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_date ON accounting_transactions(date);
+CREATE INDEX IF NOT EXISTS idx_transactions_status ON accounting_transactions(status);
+CREATE INDEX IF NOT EXISTS idx_entries_transaction_id ON accounting_entries(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_entries_account_id ON accounting_entries(account_id);
+CREATE INDEX IF NOT EXISTS idx_entries_category_id ON accounting_entries(category_id);
+CREATE INDEX IF NOT EXISTS idx_attachments_transaction_id ON accounting_attachments(transaction_id);
 
 -- ============================================================
 -- Function: Generate Transaction Number
 -- ============================================================
-CREATE OR REPLACE FUNCTION accounting.generate_transaction_number()
+CREATE OR REPLACE FUNCTION accounting_generate_transaction_number()
 RETURNS VARCHAR(100) AS $$
 DECLARE
   next_num INTEGER;
@@ -121,7 +119,7 @@ DECLARE
 BEGIN
   SELECT COALESCE(MAX(CAST(SUBSTRING(transaction_number FROM LENGTH(prefix || year_str || '-') + 1) AS INTEGER)), 0) + 1
   INTO next_num
-  FROM accounting.transactions
+  FROM accounting_transactions
   WHERE transaction_number LIKE prefix || year_str || '-%';
   
   RETURN prefix || year_str || '-' || LPAD(next_num::TEXT, 6, '0');
@@ -132,7 +130,7 @@ $$ LANGUAGE plpgsql;
 -- Function: Create Transaction (Atomic)
 -- Validates debit == credit before inserting
 -- ============================================================
-CREATE OR REPLACE FUNCTION accounting.create_transaction(
+CREATE OR REPLACE FUNCTION accounting_create_transaction(
   p_date DATE,
   p_description TEXT,
   p_entries JSONB,
@@ -188,10 +186,10 @@ BEGIN
   END IF;
 
   -- Generate transaction number
-  v_transaction_number := accounting.generate_transaction_number();
+  v_transaction_number := accounting_generate_transaction_number();
 
   -- Insert transaction
-  INSERT INTO accounting.transactions (
+  INSERT INTO accounting_transactions (
     transaction_number,
     date,
     description,
@@ -222,11 +220,11 @@ BEGIN
     v_credit := COALESCE((v_entry->>'credit')::DECIMAL, 0);
 
     -- Validate account exists
-    IF NOT EXISTS (SELECT 1 FROM accounting.accounts WHERE id = v_account_id AND is_active = true) THEN
+    IF NOT EXISTS (SELECT 1 FROM accounting_accounts WHERE id = v_account_id AND is_active = true) THEN
       RAISE EXCEPTION 'Account with id % does not exist or is inactive', v_account_id;
     END IF;
 
-    INSERT INTO accounting.entries (
+    INSERT INTO accounting_entries (
       transaction_id,
       account_id,
       category_id,
@@ -252,7 +250,7 @@ $$ LANGUAGE plpgsql;
 -- ============================================================
 -- Seed Categories
 -- ============================================================
-INSERT INTO accounting.categories (name, description, type) VALUES
+INSERT INTO accounting_categories (name, description, type) VALUES
   ('Salaries', 'Employee salary payments', 'expense'),
   ('TDS', 'Tax Deducted at Source', 'expense'),
   ('Rent TDS', 'Rent Tax Deducted at Source', 'expense'),
@@ -265,7 +263,7 @@ ON CONFLICT (name) DO NOTHING;
 -- ============================================================
 -- Seed Default Accounts (Chart of Accounts)
 -- ============================================================
-INSERT INTO accounting.accounts (code, name, type, balance) VALUES
+INSERT INTO accounting_accounts (code, name, type, balance) VALUES
   ('1000', 'Cash', 'asset', 0),
   ('1100', 'Bank Account', 'asset', 0),
   ('2000', 'Accounts Payable', 'liability', 0),
@@ -283,16 +281,15 @@ ON CONFLICT (code) DO NOTHING;
 -- ============================================================
 -- Grant Permissions (adjust as needed for your RLS policies)
 -- ============================================================
--- Grant execute permission on the function to authenticated users
--- For service role key (used in server), these grants may not be necessary
-GRANT USAGE ON SCHEMA accounting TO authenticated, service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA accounting TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION accounting.create_transaction TO authenticated, service_role;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA accounting TO authenticated, service_role;
+-- Grant permissions on tables in public schema
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION accounting_create_transaction TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION accounting_generate_transaction_number TO authenticated, service_role;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated, service_role;
 
 -- If using Row Level Security (RLS), add appropriate policies here
 -- Example:
--- ALTER TABLE accounting.transactions ENABLE ROW LEVEL SECURITY;
--- CREATE POLICY "Users can view their own transactions" ON accounting.transactions
+-- ALTER TABLE accounting_transactions ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "Users can view their own transactions" ON accounting_transactions
 --   FOR SELECT USING (created_by = auth.uid());
 
