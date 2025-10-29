@@ -63,6 +63,37 @@ export const employees = pgTable("employees", {
   agreementRefId: varchar("agreementRefId", { length: 100 }),
   salary: integer("salary").notNull(), // Store as integer (in paise/cents)
   status: statusEnum("status").default("active").notNull(),
+  
+  // KYC fields
+  aadhaarNumber: varchar("aadhaarNumber", { length: 12 }),
+  panNumber: varchar("panNumber", { length: 10 }),
+  phoneNumber: varchar("phoneNumber", { length: 15 }),
+  dateOfBirth: timestamp("dateOfBirth"),
+  
+  // Bank details
+  bankAccountNumber: varchar("bankAccountNumber", { length: 20 }),
+  ifscCode: varchar("ifscCode", { length: 11 }),
+  bankName: varchar("bankName", { length: 255 }),
+  bankBranch: varchar("bankBranch", { length: 255 }),
+  
+  // Emergency contact
+  emergencyContactName: varchar("emergencyContactName", { length: 255 }),
+  emergencyContactPhone: varchar("emergencyContactPhone", { length: 20 }),
+  emergencyContactRelation: varchar("emergencyContactRelation", { length: 50 }),
+  
+  // Nominee details
+  nomineeName: varchar("nomineeName", { length: 255 }),
+  nomineeRelation: varchar("nomineeRelation", { length: 50 }),
+  nomineeAadhaar: varchar("nomineeAadhaar", { length: 12 }),
+  
+  // Profile photo
+  profilePhotoUrl: text("profilePhotoUrl"),
+  
+  // KYC status
+  kycStatus: varchar("kycStatus", { length: 20 }).default("pending"),
+  kycVerifiedAt: timestamp("kycVerifiedAt"),
+  kycVerifiedBy: integer("kycVerifiedBy"),
+  
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
@@ -175,4 +206,27 @@ export const companyHolidays = pgTable("companyHolidays", {
 
 export type CompanyHoliday = typeof companyHolidays.$inferSelect;
 export type InsertCompanyHoliday = typeof companyHolidays.$inferInsert;
+
+/**
+ * Employee KYC documents table - stores uploaded KYC documents
+ */
+export const employeeKycDocuments = pgTable("employeeKycDocuments", {
+  id: serial("id").primaryKey(),
+  employeeId: integer("employeeId").notNull(),
+  documentType: varchar("documentType", { length: 50 }).notNull(),
+  documentName: varchar("documentName", { length: 255 }).notNull(),
+  fileUrl: text("fileUrl").notNull(),
+  fileSize: integer("fileSize"),
+  mimeType: varchar("mimeType", { length: 100 }),
+  uploadDate: timestamp("uploadDate").defaultNow().notNull(),
+  verified: boolean("verified").default(false),
+  verifiedBy: integer("verifiedBy"),
+  verifiedAt: timestamp("verifiedAt"),
+  rejectionReason: text("rejectionReason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type EmployeeKycDocument = typeof employeeKycDocuments.$inferSelect;
+export type InsertEmployeeKycDocument = typeof employeeKycDocuments.$inferInsert;
 

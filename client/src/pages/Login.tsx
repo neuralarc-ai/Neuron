@@ -1,107 +1,82 @@
-import { useState, useEffect } from "react";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Lock } from "lucide-react";
-import { APP_TITLE, APP_LOGO } from "@/const";
-import { useAuth } from "@/contexts/AuthContext";
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginPage() {
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const { login, isLoading } = useAuth();
-
-  // Auto-login when PIN is complete (6 digits)
-  useEffect(() => {
-    if (pin.length === 6 && !isLoading) {
-      const attemptLogin = async () => {
-        try {
-          await login(pin);
-        } catch (err) {
-          setError(err instanceof Error ? err.message : "Invalid PIN");
-          setPin(""); // Clear PIN on error
-        }
-      };
-      attemptLogin();
-    }
-  }, [pin, login, isLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
     
-    if (pin.length === 6 && !isLoading) {
-      try {
-        await login(pin);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Invalid PIN");
-        setPin(""); // Clear PIN on error
-      }
+    if (!email || !password) {
+      toast.error('Please enter both email and password');
+      return;
+    }
+
+    try {
+      await login(email, password);
+      toast.success('Login successful!');
+    } catch (error) {
+      console.error('Login error:', error);
+      toast.error(error instanceof Error ? error.message : 'Login failed. Please try again.');
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex justify-center">
-            <img
-              src={APP_LOGO}
-              className="h-fit w-16 rounded-lg object-cover"
-              alt="Logo"
-            />
-          </div>
-          <div>
-            <CardTitle className="text-2xl font-bold">{APP_TITLE}</CardTitle>
-            <CardDescription>
-              Enter your PIN to access the system
-            </CardDescription>
-          </div>
+          <CardTitle className="text-2xl font-bold">Neuron HRMS</CardTitle>
+          <CardDescription>
+            Sign in to your account
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">              
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="pin"
-                  type="password"
-                  value={pin}
-                  onChange={(e) => {
-                    // Only allow numbers
-                    const value = e.target.value.replace(/[^0-9]/g, '');
-                    setPin(value);
-                  }}
-                  onKeyDown={(e) => {
-                    // Allow backspace, delete, arrow keys, tab, enter
-                    if (
-                      e.key === 'Backspace' ||
-                      e.key === 'Delete' ||
-                      e.key === 'ArrowLeft' ||
-                      e.key === 'ArrowRight' ||
-                      e.key === 'Tab' ||
-                      e.key === 'Enter' ||
-                      (e.key >= '0' && e.key <= '9')
-                    ) {
-                      return;
-                    }
-                    e.preventDefault();
-                  }}
-                  placeholder="Enter your PIN"
-                  className="pl-10 pr-8 py-6 text-center text-2xl tracking-widest"
-                  disabled={isLoading}
-                  autoComplete="off"
-                  maxLength={6}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@neuronhrms.com"
+                required
+              />
             </div>
-
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                required
+              />
+            </div>
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={isLoading}
+            >
+              {isLoading ? 'Signing in...' : 'Sign in'}
+            </Button>
           </form>
+          
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Default Credentials:</h3>
+            <div className="text-xs text-gray-600 space-y-1">
+              <div><strong>Admin:</strong> admin@neuronhrms.com / admin123</div>
+              <div><strong>Manager:</strong> manager@neuronhrms.com / manager123</div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

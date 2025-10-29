@@ -1,15 +1,16 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { supabase, auth } from "@/lib/supabase";
+import { User } from "@supabase/supabase-js";
 
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (pin: string) => Promise<void>;
-  logout: () => void;
+  user: User | null;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const CORRECT_PIN = "147812";
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -18,51 +19,63 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
 
   // Check if user is already authenticated on mount
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
-        // Check if there's a session cookie or local storage
-        const sessionData = localStorage.getItem("neuron-auth-session");
-        if (sessionData) {
-          const { timestamp } = JSON.parse(sessionData);
-          // Check if session is still valid (24 hours)
-          const isExpired = Date.now() - timestamp > 24 * 60 * 60 * 1000;
-          if (!isExpired) {
-            setIsAuthenticated(true);
-          } else {
-            localStorage.removeItem("neuron-auth-session");
-          }
+        const { user, error } = await auth.getCurrentUser();
+        if (user && !error) {
+          setUser(user);
+          setIsAuthenticated(true);
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
         }
       } catch (error) {
         console.error("Error checking auth status:", error);
-        localStorage.removeItem("neuron-auth-session");
+        setUser(null);
+        setIsAuthenticated(false);
       } finally {
         setIsLoading(false);
       }
     };
 
     checkAuthStatus();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          setUser(session.user);
+          setIsAuthenticated(true);
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+        setIsLoading(false);
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const login = async (pin: string): Promise<void> => {
+  const login = async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
     
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const { data, error } = await auth.signIn(email, password);
       
-      if (pin === CORRECT_PIN) {
-        // Store session data
-        const sessionData = {
-          authenticated: true,
-          timestamp: Date.now(),
-        };
-        localStorage.setItem("neuron-auth-session", JSON.stringify(sessionData));
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data.user) {
+        setUser(data.user);
         setIsAuthenticated(true);
       } else {
-        throw new Error("Invalid PIN. Please try again.");
+        throw new Error("Login failed. Please try again.");
       }
     } catch (error) {
       throw error;
@@ -71,13 +84,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem("neuron-auth-session");
-    setIsAuthenticated(false);
+  const logout = async (): Promise<void> => {
+    setIsLoading(true);
+    
+    try {
+      const { error } = await auth.signOut();
+      if (error) {
+        console.error("Logout error:", error);
+      }
+      
+      setUser(null);
+      setIsAuthenticated(false);
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -4,7 +4,52 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co'
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key'
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  }
+})
+
+// Authentication helper functions
+export const auth = {
+  // Sign in with email and password
+  async signIn(email: string, password: string) {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    })
+    return { data, error }
+  },
+
+  // Sign out
+  async signOut() {
+    const { error } = await supabase.auth.signOut()
+    return { error }
+  },
+
+  // Get current user
+  async getCurrentUser() {
+    const { data: { user }, error } = await supabase.auth.getUser()
+    return { user, error }
+  },
+
+  // Get user profile
+  async getUserProfile() {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .single()
+    return { data, error }
+  },
+
+  // Check if user is authenticated
+  async isAuthenticated() {
+    const { user } = await supabase.auth.getUser()
+    return !!user
+  }
+}
 
 // Database types
 export interface Employee {
@@ -17,6 +62,37 @@ export interface Employee {
   agreementRefId?: string
   salary: number
   status: 'active' | 'inactive'
+  
+  // KYC fields
+  aadhaarNumber?: string
+  panNumber?: string
+  phoneNumber?: string
+  dateOfBirth?: string
+  
+  // Bank details
+  bankAccountNumber?: string
+  ifscCode?: string
+  bankName?: string
+  bankBranch?: string
+  
+  // Emergency contact
+  emergencyContactName?: string
+  emergencyContactPhone?: string
+  emergencyContactRelation?: string
+  
+  // Nominee details
+  nomineeName?: string
+  nomineeRelation?: string
+  nomineeAadhaar?: string
+  
+  // Profile photo
+  profilePhotoUrl?: string
+  
+  // KYC status
+  kycStatus?: 'pending' | 'verified' | 'rejected'
+  kycVerifiedAt?: string
+  kycVerifiedBy?: number
+  
   createdAt: string
   updatedAt: string
 }
@@ -54,6 +130,23 @@ export interface DashboardStats {
   activeEmployees: number
   inactiveEmployees: number
   monthlyPayroll: number
+}
+
+export interface KycDocument {
+  id: number
+  employeeId: number
+  documentType: string
+  documentName: string
+  fileUrl: string
+  fileSize?: number
+  mimeType?: string
+  uploadDate: string
+  verified: boolean
+  verifiedBy?: number
+  verifiedAt?: string
+  rejectionReason?: string
+  createdAt: string
+  updatedAt: string
 }
 
 // Simple API functions
@@ -120,39 +213,46 @@ export const api = {
   // Create employee
   async createEmployee(employee: Omit<Employee, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ success: boolean; message: string }> {
     try {
+      console.log('Creating employee with data:', employee);
+      
       const { error } = await supabase
         .from('employees')
-        .insert([employee])
+        .insert([employee]);
 
       if (error) {
-        console.error('Error creating employee:', error)
-        return { success: false, message: 'Failed to create employee' }
+        console.error('Error creating employee:', error);
+        return { success: false, message: `Failed to create employee: ${error.message}` };
       }
 
-      return { success: true, message: 'Employee created successfully' }
+      console.log('Employee created successfully');
+      return { success: true, message: 'Employee created successfully' };
     } catch (error) {
-      console.error('Error in createEmployee:', error)
-      return { success: false, message: 'Failed to create employee' }
+      console.error('Error in createEmployee:', error);
+      return { success: false, message: 'Failed to create employee' };
     }
   },
 
   // Update employee
   async updateEmployee(id: number, employee: Partial<Employee>): Promise<{ success: boolean; message: string }> {
     try {
+      console.log('Updating employee with ID:', id);
+      console.log('Update data:', employee);
+      
       const { error } = await supabase
         .from('employees')
         .update(employee)
-        .eq('id', id)
+        .eq('id', id);
 
       if (error) {
-        console.error('Error updating employee:', error)
-        return { success: false, message: 'Failed to update employee' }
+        console.error('Error updating employee:', error);
+        return { success: false, message: `Failed to update employee: ${error.message}` };
       }
 
-      return { success: true, message: 'Employee updated successfully' }
+      console.log('Employee updated successfully');
+      return { success: true, message: 'Employee updated successfully' };
     } catch (error) {
-      console.error('Error in updateEmployee:', error)
-      return { success: false, message: 'Failed to update employee' }
+      console.error('Error in updateEmployee:', error);
+      return { success: false, message: 'Failed to update employee' };
     }
   },
 
@@ -571,6 +671,400 @@ export const api = {
     } catch (error) {
       console.error('Error in getCompanyHolidays:', error)
       return []
+    }
+  },
+
+  // Upload KYC document
+  async uploadKycDocument(
+    employeeId: number,
+    file: File,
+    documentType: string
+  ): Promise<{ success: boolean; message: string; url?: string }> {
+    try {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        return { success: false, message: 'Invalid file type. Only images and PDFs are allowed.' };
+      }
+
+      // Validate file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        return { success: false, message: 'File size must be less than 5MB' };
+      }
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${employeeId}/${documentType}_${Date.now()}.${fileExt}`;
+      
+      console.log('Uploading file:', fileName, 'Size:', file.size, 'Type:', file.type);
+      console.log('Supabase URL:', supabaseUrl);
+      console.log('Supabase Key exists:', !!supabaseKey);
+      
+      // Check if user is authenticated
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.error('Authentication error:', authError);
+        return { success: false, message: 'User not authenticated. Please log in again.' };
+      }
+      console.log('User authenticated:', user.email);
+      
+      // Upload to Supabase storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('kyc-documents')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        
+        // Provide specific error messages
+        if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('not found')) {
+          return { success: false, message: 'Storage bucket not configured. Please contact administrator.' };
+        } else if (uploadError.message.includes('File size')) {
+          return { success: false, message: 'File size exceeds limit' };
+        } else if (uploadError.message.includes('Invalid file type')) {
+          return { success: false, message: 'Invalid file type' };
+        } else if (uploadError.message.includes('row-level security policy')) {
+          return { success: false, message: 'Permission denied. Please contact administrator to configure storage policies.' };
+        } else {
+          return { success: false, message: `Upload failed: ${uploadError.message}` };
+        }
+      }
+
+      console.log('File uploaded successfully:', uploadData);
+
+      // For private buckets, we need to use signed URLs instead of public URLs
+      // Store the file path instead of a public URL
+      const filePath = uploadData.path;
+
+      console.log('File path:', filePath);
+      console.log('Original fileName:', fileName);
+
+      // Test if we can generate a signed URL for this path
+      const { data: testSignedUrl, error: testError } = await supabase.storage
+        .from('kyc-documents')
+        .createSignedUrl(filePath, 60); // 1 minute test
+
+      if (testError) {
+        console.error('Test signed URL error:', testError);
+        // Try to delete the uploaded file
+        await supabase.storage.from('kyc-documents').remove([fileName]);
+        return { success: false, message: `File uploaded but cannot generate access URL: ${testError.message}` };
+      }
+
+      console.log('Test signed URL successful:', testSignedUrl.signedUrl);
+
+      // Save to database
+      const { error: dbError } = await supabase
+        .from('employeeKycDocuments')
+        .insert([{
+          employeeId,
+          documentType,
+          documentName: file.name,
+          fileUrl: filePath, // Store path instead of public URL
+          fileSize: file.size,
+          mimeType: file.type,
+        }]);
+
+      if (dbError) {
+        console.error('Database error:', dbError);
+        // Try to delete the uploaded file
+        await supabase.storage.from('kyc-documents').remove([fileName]);
+        return { success: false, message: `Failed to save document metadata: ${dbError.message}` };
+      }
+
+      return { success: true, message: 'Document uploaded successfully', url: filePath };
+    } catch (error) {
+      console.error('Error in uploadKycDocument:', error);
+      return { success: false, message: `Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}` };
+    }
+  },
+
+  // Get KYC documents for an employee
+  async getKycDocuments(employeeId: number): Promise<KycDocument[]> {
+    try {
+      const { data, error } = await supabase
+        .from('employeeKycDocuments')
+        .select('*')
+        .eq('employeeId', employeeId)
+        .order('uploadDate', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching documents:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Error in getKycDocuments:', error);
+      return [];
+    }
+  },
+
+  // Get signed URL for viewing a document
+  async getDocumentSignedUrl(filePath: string): Promise<{ success: boolean; url?: string; error?: string }> {
+    try {
+      console.log('Generating signed URL for path:', filePath);
+      
+      // First, let's check if the file exists by listing files in the bucket
+      const { data: listData, error: listError } = await supabase.storage
+        .from('kyc-documents')
+        .list(filePath.split('/')[0] || '', {
+          limit: 100,
+          offset: 0
+        });
+
+      if (listError) {
+        console.error('Error listing files:', listError);
+        return { success: false, error: `Cannot access storage: ${listError.message}` };
+      }
+
+      console.log('Files in bucket:', listData);
+      
+      // Check if our file exists in the list
+      const fileName = filePath.split('/').pop();
+      const fileExists = listData?.some(file => file.name === fileName);
+      
+      if (!fileExists) {
+        console.error('File not found in bucket:', fileName);
+        return { success: false, error: `File not found: ${fileName}` };
+      }
+
+      // Generate signed URL
+      const { data, error } = await supabase.storage
+        .from('kyc-documents')
+        .createSignedUrl(filePath, 3600); // 1 hour expiry
+
+      if (error) {
+        console.error('Error creating signed URL:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log('Signed URL generated successfully');
+      return { success: true, url: data.signedUrl };
+    } catch (error) {
+      console.error('Error in getDocumentSignedUrl:', error);
+      return { success: false, error: 'Failed to generate document URL' };
+    }
+  },
+
+  // Verify KYC document
+  async verifyKycDocument(
+    documentId: number, 
+    verifiedBy: number, 
+    accepted: boolean, 
+    reason?: string
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const { error } = await supabase
+        .from('employeeKycDocuments')
+        .update({
+          verified: accepted,
+          verifiedBy,
+          verifiedAt: new Date().toISOString(),
+          rejectionReason: !accepted ? reason : null,
+        })
+        .eq('id', documentId);
+
+      if (error) {
+        console.error('Error verifying document:', error);
+        return { success: false, message: 'Failed to verify document' };
+      }
+
+      return { success: true, message: 'Document verified successfully' };
+    } catch (error) {
+      console.error('Error in verifyKycDocument:', error);
+      return { success: false, message: 'Failed to verify document' };
+    }
+  },
+
+  // Delete KYC document
+  async deleteKycDocument(documentId: number): Promise<{ success: boolean; message: string }> {
+    try {
+      console.log('Deleting document with ID:', documentId);
+      
+      // Get document info first to delete from storage
+      const { data: doc, error: fetchError } = await supabase
+        .from('employeeKycDocuments')
+        .select('*')
+        .eq('id', documentId)
+        .single();
+
+      if (fetchError || !doc) {
+        console.error('Error fetching document:', fetchError);
+        return { success: false, message: 'Document not found' };
+      }
+
+      console.log('Document found:', doc);
+
+      // The fileUrl now contains the file path directly (e.g., "employeeId/filename.pdf")
+      let filePath = doc.fileUrl;
+      
+      // If it's a full URL, extract the path
+      if (filePath.includes('/kyc-documents/')) {
+        filePath = filePath.split('/kyc-documents/')[1];
+      }
+      
+      console.log('File path to delete:', filePath);
+      
+      // Delete from storage
+      const { error: storageError } = await supabase.storage
+        .from('kyc-documents')
+        .remove([filePath]);
+
+      if (storageError) {
+        console.error('Error deleting from storage:', storageError);
+        // Continue with database deletion even if storage deletion fails
+        // This handles cases where the file might not exist in storage
+      } else {
+        console.log('File deleted from storage successfully');
+      }
+
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from('employeeKycDocuments')
+        .delete()
+        .eq('id', documentId);
+
+      if (dbError) {
+        console.error('Error deleting from database:', dbError);
+        return { success: false, message: 'Failed to delete document from database' };
+      }
+
+      console.log('Document deleted successfully');
+      return { success: true, message: 'Document deleted successfully' };
+    } catch (error) {
+      console.error('Error in deleteKycDocument:', error);
+      return { success: false, message: 'Failed to delete document' };
+    }
+  },
+
+  // Get all KYC documents (for admin review)
+  async getAllKycDocuments(): Promise<KycDocument[]> {
+    try {
+      const { data, error } = await supabase
+        .from('employeeKycDocuments')
+        .select('*')
+        .order('uploadDate', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching all documents:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Error in getAllKycDocuments:', error);
+      return [];
+    }
+  },
+
+  // Debug function to check specific document before deletion
+  async debugDocument(documentId: number): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      console.log('Debugging document with ID:', documentId);
+      
+      // Get document info
+      const { data: doc, error: fetchError } = await supabase
+        .from('employeeKycDocuments')
+        .select('*')
+        .eq('id', documentId)
+        .single();
+
+      if (fetchError || !doc) {
+        console.error('Error fetching document:', fetchError);
+        return { success: false, error: 'Document not found' };
+      }
+
+      console.log('Document found:', doc);
+
+      // Check if file exists in storage
+      let filePath = doc.fileUrl;
+      if (filePath.includes('/kyc-documents/')) {
+        filePath = filePath.split('/kyc-documents/')[1];
+      }
+
+      console.log('Checking file path:', filePath);
+
+      // List files in the directory to see what's actually there
+      const directory = filePath.split('/')[0];
+      const fileName = filePath.split('/').pop();
+
+      const { data: listData, error: listError } = await supabase.storage
+        .from('kyc-documents')
+        .list(directory, {
+          limit: 100,
+          offset: 0
+        });
+
+      if (listError) {
+        console.error('Error listing files:', listError);
+        return { success: false, error: `Cannot list files: ${listError.message}` };
+      }
+
+      console.log('Files in directory:', listData);
+      const fileExists = listData?.some(file => file.name === fileName);
+
+      return { 
+        success: true, 
+        data: { 
+          document: doc,
+          filePath,
+          directory,
+          fileName,
+          fileExists,
+          filesInDirectory: listData
+        } 
+      };
+    } catch (error) {
+      console.error('Error in debugDocument:', error);
+      return { success: false, error: 'Debug failed' };
+    }
+  },
+
+  // Debug function to check storage bucket contents
+  async debugStorageBucket(): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      console.log('Debugging storage bucket...');
+      
+      // List all files in the bucket
+      const { data: listData, error: listError } = await supabase.storage
+        .from('kyc-documents')
+        .list('', {
+          limit: 1000,
+          offset: 0
+        });
+
+      if (listError) {
+        console.error('Error listing bucket contents:', listError);
+        return { success: false, error: listError.message };
+      }
+
+      console.log('Bucket contents:', listData);
+      
+      // Also check database records
+      const { data: dbData, error: dbError } = await supabase
+        .from('employeeKycDocuments')
+        .select('id, employeeId, documentType, fileUrl, documentName');
+
+      if (dbError) {
+        console.error('Error fetching database records:', dbError);
+        return { success: false, error: dbError.message };
+      }
+
+      console.log('Database records:', dbData);
+
+      return { 
+        success: true, 
+        data: { 
+          bucketFiles: listData, 
+          databaseRecords: dbData 
+        } 
+      };
+    } catch (error) {
+      console.error('Error in debugStorageBucket:', error);
+      return { success: false, error: 'Debug failed' };
     }
   }
 }
