@@ -25,6 +25,7 @@ export default function Employees() {
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
+  const [tempFiles, setTempFiles] = useState<{[key: string]: File}>({});
 
   // Step validation functions
   const isBasicInfoValid = () => {
@@ -186,6 +187,7 @@ export default function Employees() {
     setEditingEmployee(null);
     setKycDocuments([]);
     setCurrentStep(0);
+    setTempFiles({});
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -269,6 +271,39 @@ export default function Employees() {
 
       if (result.success) {
         toast.success(result.message);
+        
+        // If creating new employee and there are temp files, upload them
+        if (!editingEmployee && Object.keys(tempFiles).length > 0) {
+          try {
+            setUploadingDocument(true);
+            toast.info("Uploading KYC documents...");
+            
+            // Get the newly created employee ID from the result
+            const newEmployeeId = (result as any).employeeId;
+            
+            if (newEmployeeId) {
+              // Upload all temporary files
+              const uploadPromises = Object.entries(tempFiles).map(([docType, file]) =>
+                api.uploadKycDocument(newEmployeeId, file, docType)
+              );
+              
+              const uploadResults = await Promise.all(uploadPromises);
+              const successCount = uploadResults.filter(r => r.success).length;
+              
+              if (successCount === uploadResults.length) {
+                toast.success(`All ${successCount} documents uploaded successfully`);
+              } else {
+                toast.warning(`${successCount} of ${uploadResults.length} documents uploaded successfully`);
+              }
+            }
+          } catch (error) {
+            console.error('Error uploading documents:', error);
+            toast.error("Failed to upload some documents");
+          } finally {
+            setUploadingDocument(false);
+          }
+        }
+        
         setOpen(false);
         resetForm();
         // Refresh employees list
@@ -357,33 +392,40 @@ export default function Employees() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!editingEmployee?.id) {
-      toast.error("Please save employee first before uploading documents");
-      return;
-    }
-
     if (file.size > 5 * 1024 * 1024) {
       toast.error("File size should be less than 5MB");
       return;
     }
 
-    try {
-      setUploadingDocument(true);
-      const result = await api.uploadKycDocument(editingEmployee.id, file, documentType);
-      
-      if (result.success) {
-        toast.success("Document uploaded successfully");
-        // Reload documents
-        const docs = await api.getKycDocuments(editingEmployee.id);
-        setKycDocuments(docs);
-      } else {
-        toast.error(result.message);
+    // If editing existing employee, upload immediately
+    if (editingEmployee?.id) {
+      try {
+        setUploadingDocument(true);
+        const result = await api.uploadKycDocument(editingEmployee.id, file, documentType);
+        
+        if (result.success) {
+          toast.success("Document uploaded successfully");
+          // Reload documents
+          const docs = await api.getKycDocuments(editingEmployee.id);
+          setKycDocuments(docs);
+        } else {
+          toast.error(result.message);
+        }
+      } catch (error) {
+        console.error('Error uploading document:', error);
+        toast.error("Failed to upload document");
+      } finally {
+        setUploadingDocument(false);
+        // Reset file input
+        event.target.value = '';
       }
-    } catch (error) {
-      console.error('Error uploading document:', error);
-      toast.error("Failed to upload document");
-    } finally {
-      setUploadingDocument(false);
+    } else {
+      // If creating new employee, store file temporarily
+      setTempFiles(prev => ({
+        ...prev,
+        [documentType]: file
+      }));
+      toast.success(`${documentType.replace('_', ' ')} file selected for upload`);
       // Reset file input
       event.target.value = '';
     }
@@ -739,9 +781,8 @@ export default function Employees() {
                       </div>
                     </div>
 
-                    {/* KYC Documents Upload Section - Only show if editing */}
-                    {editingEmployee && (
-                      <div className="border-t pt-4 mt-4 space-y-4">
+                    {/* KYC Documents Upload Section */}
+                    <div className="border-t pt-4 mt-4 space-y-4">
                         <h3 className="font-semibold">KYC Documents</h3>
                         
                         {/* Upload buttons */}
@@ -846,16 +887,43 @@ export default function Employees() {
                             ))}
                           </div>
                         )}
-                      </div>
-                    )}
 
-                    {!editingEmployee && (
-                      <div className="bg-muted/50 p-4 rounded-lg">
-                        <p className="text-sm text-muted-foreground">
-                          KYC documents can be uploaded after creating the employee record.
-                        </p>
+                        {/* Show selected files during creation */}
+                        {!editingEmployee && Object.keys(tempFiles).length > 0 && (
+                          <div className="space-y-2">
+                            <h4 className="text-sm font-semibold">Selected Documents:</h4>
+                            {Object.entries(tempFiles).map(([docType, file]) => (
+                              <div key={docType} className="flex items-center justify-between p-3 border rounded-lg">
+                                <div className="flex items-center gap-3 flex-1">
+                                  <FileText className="h-5 w-5 text-muted-foreground" />
+                                  <div className="flex-1">
+                                    <p className="font-medium">{file.name}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {docType.replace('_', ' ')} • {(file.size / 1024).toFixed(0)} KB
+                                    </p>
+                                  </div>
+                                </div>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setTempFiles(prev => {
+                                      const newFiles = { ...prev };
+                                      delete newFiles[docType];
+                                      return newFiles;
+                                    });
+                                  }}
+                                  className="text-destructive hover:text-destructive"
+                                  title="Remove File"
+                                  type="button"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
                     </div>
                   )}
 

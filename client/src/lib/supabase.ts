@@ -211,13 +211,14 @@ export const api = {
   },
 
   // Create employee
-  async createEmployee(employee: Omit<Employee, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ success: boolean; message: string }> {
+  async createEmployee(employee: Omit<Employee, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ success: boolean; message: string; employeeId?: number }> {
     try {
       console.log('Creating employee with data:', employee);
       
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('employees')
-        .insert([employee]);
+        .insert([employee])
+        .select('id');
 
       if (error) {
         console.error('Error creating employee:', error);
@@ -225,7 +226,11 @@ export const api = {
       }
 
       console.log('Employee created successfully');
-      return { success: true, message: 'Employee created successfully' };
+      return { 
+        success: true, 
+        message: 'Employee created successfully',
+        employeeId: data?.[0]?.id
+      };
     } catch (error) {
       console.error('Error in createEmployee:', error);
       return { success: false, message: 'Failed to create employee' };
