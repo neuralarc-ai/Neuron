@@ -196,6 +196,23 @@ export function SimpleRevenueForm() {
     });
   };
 
+  // Show loading state only if we don't have any data and are still loading
+  const isLoadingData = accountsLoading && !accounts;
+  const hasErrors = accountsError || categoriesError || vendorsError;
+
+  if (isLoadingData && !hasErrors) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-12">
+          <div className="text-center space-y-2">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-sm text-muted-foreground">Loading accounts and categories...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -297,10 +314,20 @@ export function SimpleRevenueForm() {
                 required
               >
                 <SelectTrigger id="account">
-                  <SelectValue placeholder={accountsLoading ? "Loading..." : `Select ${transactionType === "revenue" ? "revenue" : "expense"} account`} />
+                  <SelectValue placeholder={
+                    accountsLoading 
+                      ? "Loading..." 
+                      : accountsError 
+                        ? "Error loading accounts" 
+                        : `Select ${transactionType === "revenue" ? "revenue" : "expense"} account`
+                  } />
                 </SelectTrigger>
                 <SelectContent>
-                  {relevantAccounts && relevantAccounts.length > 0 ? (
+                  {accountsLoading ? (
+                    <SelectItem value="loading" disabled>Loading accounts...</SelectItem>
+                  ) : accountsError ? (
+                    <SelectItem value="error" disabled>Error: {accountsError.message}</SelectItem>
+                  ) : relevantAccounts && relevantAccounts.length > 0 ? (
                     relevantAccounts
                       .filter((acc) => acc.type === (transactionType === "revenue" ? "revenue" : "expense"))
                       .map((account) => (
@@ -323,10 +350,20 @@ export function SimpleRevenueForm() {
                 disabled={categoriesLoading}
               >
                 <SelectTrigger id="category">
-                  <SelectValue placeholder={categoriesLoading ? "Loading..." : "Select category (optional)"} />
+                  <SelectValue placeholder={
+                    categoriesLoading 
+                      ? "Loading..." 
+                      : categoriesError 
+                        ? "Error loading categories" 
+                        : "Select category (optional)"
+                  } />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories && categories.length > 0 ? (
+                  {categoriesLoading ? (
+                    <SelectItem value="loading" disabled>Loading categories...</SelectItem>
+                  ) : categoriesError ? (
+                    <SelectItem value="error" disabled>Error: {categoriesError.message}</SelectItem>
+                  ) : categories && categories.length > 0 ? (
                     categories.map((category) => (
                       <SelectItem key={category.id} value={category.id.toString()}>
                         {category.name}
@@ -359,20 +396,30 @@ export function SimpleRevenueForm() {
                   onValueChange={(value) => setVendorId(value ? parseInt(value) : undefined)}
                   disabled={vendorsLoading}
                 >
-                  <SelectTrigger id="vendor" className="flex-1">
-                    <SelectValue placeholder={vendorsLoading ? "Loading..." : "Select (optional)"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {vendors && vendors.length > 0 ? (
-                      vendors.map((vendor) => (
-                        <SelectItem key={vendor.id} value={vendor.id.toString()}>
-                          {vendor.name}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="none" disabled>No vendors available</SelectItem>
-                    )}
-                  </SelectContent>
+                <SelectTrigger id="vendor" className="flex-1">
+                  <SelectValue placeholder={
+                    vendorsLoading 
+                      ? "Loading..." 
+                      : vendorsError 
+                        ? "Error loading vendors" 
+                        : "Select (optional)"
+                  } />
+                </SelectTrigger>
+                <SelectContent>
+                  {vendorsLoading ? (
+                    <SelectItem value="loading" disabled>Loading vendors...</SelectItem>
+                  ) : vendorsError ? (
+                    <SelectItem value="error" disabled>Error: {vendorsError.message}</SelectItem>
+                  ) : vendors && vendors.length > 0 ? (
+                    vendors.map((vendor) => (
+                      <SelectItem key={vendor.id} value={vendor.id.toString()}>
+                        {vendor.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="none" disabled>No vendors available</SelectItem>
+                  )}
+                </SelectContent>
                 </Select>
                 <Button
                   type="button"
