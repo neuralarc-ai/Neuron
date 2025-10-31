@@ -24,7 +24,7 @@ export function AccountingDashboard() {
   const [month, setMonth] = useState(currentDate.getMonth() + 1);
   const [year, setYear] = useState(currentDate.getFullYear());
 
-  const { data: summary, isLoading } = trpc.accounting.getSummary.useQuery({
+  const { data: summary, isLoading, error: summaryError } = trpc.accounting.getSummary.useQuery({
     month,
     year,
   });
@@ -32,10 +32,22 @@ export function AccountingDashboard() {
   // Fetch all transactions (both draft and posted) for display
   const utils = trpc.useUtils();
 
-  const { data: recentTransactions, refetch: refetchTransactions } = trpc.accounting.getTransactions.useQuery({
+  const { data: recentTransactions, refetch: refetchTransactions, error: transactionsError } = trpc.accounting.getTransactions.useQuery({
     limit: 50, // Increase limit to show more transactions
     // Remove status filter to show both draft and posted
   });
+
+  // Show error messages if queries fail
+  useEffect(() => {
+    if (summaryError) {
+      toast.error(`Failed to load summary: ${summaryError.message}`);
+      console.error("[AccountingDashboard] Summary error:", summaryError);
+    }
+    if (transactionsError) {
+      toast.error(`Failed to load transactions: ${transactionsError.message}`);
+      console.error("[AccountingDashboard] Transactions error:", transactionsError);
+    }
+  }, [summaryError, transactionsError]);
 
   // Refetch transactions when component mounts or when month/year changes
   const { refetch: refetchSummary } = trpc.accounting.getSummary.useQuery({

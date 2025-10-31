@@ -410,7 +410,10 @@ export const accountingRouter = router({
         console.error("[Accounting] Error code:", error.code);
         console.error("[Accounting] Error details:", error.details);
         console.error("[Accounting] Error hint:", error.hint);
-        return [];
+        console.error("[Accounting] Error message:", error.message);
+        
+        // Throw error instead of returning empty array so frontend knows something went wrong
+        throw new Error(`Failed to fetch categories: ${error.message || 'Unknown error'}. Check RLS policies.`);
       }
 
       console.log(`[Accounting] getCategories: Found ${categories?.length || 0} categories`);
@@ -420,8 +423,10 @@ export const accountingRouter = router({
       if (error instanceof Error) {
         console.error("[Accounting] Error message:", error.message);
         console.error("[Accounting] Error stack:", error.stack);
+        // Re-throw the error so tRPC can handle it properly
+        throw error;
       }
-      return [];
+      throw new Error("Failed to fetch categories: Unknown error");
     }
   }),
 
@@ -441,7 +446,10 @@ export const accountingRouter = router({
         console.error("[Accounting] Error code:", error.code);
         console.error("[Accounting] Error details:", error.details);
         console.error("[Accounting] Error hint:", error.hint);
-        return [];
+        console.error("[Accounting] Error message:", error.message);
+        
+        // Throw error instead of returning empty array so frontend knows something went wrong
+        throw new Error(`Failed to fetch accounts: ${error.message || 'Unknown error'}. Check RLS policies.`);
       }
 
       console.log(`[Accounting] getAccounts: Found ${accounts?.length || 0} accounts`);
@@ -451,8 +459,10 @@ export const accountingRouter = router({
       if (error instanceof Error) {
         console.error("[Accounting] Error message:", error.message);
         console.error("[Accounting] Error stack:", error.stack);
+        // Re-throw the error so tRPC can handle it properly
+        throw error;
       }
-      return [];
+      throw new Error("Failed to fetch accounts: Unknown error");
     }
   }),
 
@@ -472,7 +482,10 @@ export const accountingRouter = router({
         console.error("[Accounting] Error code:", error.code);
         console.error("[Accounting] Error details:", error.details);
         console.error("[Accounting] Error hint:", error.hint);
-        return [];
+        console.error("[Accounting] Error message:", error.message);
+        
+        // Throw error instead of returning empty array so frontend knows something went wrong
+        throw new Error(`Failed to fetch vendors: ${error.message || 'Unknown error'}. Check RLS policies.`);
       }
 
       console.log(`[Accounting] getVendors: Found ${vendors?.length || 0} vendors`);
@@ -482,8 +495,10 @@ export const accountingRouter = router({
       if (error instanceof Error) {
         console.error("[Accounting] Error message:", error.message);
         console.error("[Accounting] Error stack:", error.stack);
+        // Re-throw the error so tRPC can handle it properly
+        throw error;
       }
-      return [];
+      throw new Error("Failed to fetch vendors: Unknown error");
     }
   }),
 

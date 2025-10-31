@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,9 +51,25 @@ export function SimpleRevenueForm() {
   const [newVendorPhone, setNewVendorPhone] = useState("");
 
   const utils = trpc.useUtils();
-  const { data: accounts, isLoading: accountsLoading } = trpc.accounting.getAccounts.useQuery();
-  const { data: categories, isLoading: categoriesLoading } = trpc.accounting.getCategories.useQuery();
-  const { data: vendors, isLoading: vendorsLoading } = trpc.accounting.getVendors.useQuery();
+  const { data: accounts, isLoading: accountsLoading, error: accountsError } = trpc.accounting.getAccounts.useQuery();
+  const { data: categories, isLoading: categoriesLoading, error: categoriesError } = trpc.accounting.getCategories.useQuery();
+  const { data: vendors, isLoading: vendorsLoading, error: vendorsError } = trpc.accounting.getVendors.useQuery();
+
+  // Show error messages if queries fail
+  useEffect(() => {
+    if (accountsError) {
+      toast.error(`Failed to load accounts: ${accountsError.message}`);
+      console.error("[SimpleRevenueForm] Accounts error:", accountsError);
+    }
+    if (categoriesError) {
+      toast.error(`Failed to load categories: ${categoriesError.message}`);
+      console.error("[SimpleRevenueForm] Categories error:", categoriesError);
+    }
+    if (vendorsError) {
+      toast.error(`Failed to load vendors: ${vendorsError.message}`);
+      console.error("[SimpleRevenueForm] Vendors error:", vendorsError);
+    }
+  }, [accountsError, categoriesError, vendorsError]);
 
   const createVendor = trpc.accounting.createVendor.useMutation({
     onSuccess: (data) => {
