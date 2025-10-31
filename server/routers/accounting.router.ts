@@ -213,12 +213,34 @@ export const accountingRouter = router({
             .select("*")
             .in("transaction_id", transactionIds);
 
-          // Group entries by transaction_id
+          // Fetch account information for entries
+          let accountsMap: Record<number, any> = {};
+          if (entries && entries.length > 0) {
+            const accountIds = [...new Set(entries.map((e: any) => e.account_id).filter(Boolean))];
+            if (accountIds.length > 0) {
+              const { data: accounts } = await supabase
+                .from("accounting_accounts")
+                .select("id, code, name")
+                .in("id", accountIds);
+              
+              if (accounts) {
+                accounts.forEach((account: any) => {
+                  accountsMap[account.id] = account;
+                });
+              }
+            }
+          }
+
+          // Group entries by transaction_id and enrich with account info
           const entriesByTransaction = (entries || []).reduce((acc: any, entry: any) => {
             if (!acc[entry.transaction_id]) {
               acc[entry.transaction_id] = [];
             }
-            acc[entry.transaction_id].push(entry);
+            const account = accountsMap[entry.account_id];
+            acc[entry.transaction_id].push({
+              ...entry,
+              account: account ? { code: account.code, name: account.name } : null,
+            });
             return acc;
           }, {} as Record<number, any[]>);
 
@@ -232,6 +254,33 @@ export const accountingRouter = router({
       } catch (error) {
         console.error("[Accounting] Transactions query error:", error);
         return [];
+      }
+    }),
+
+  // Delete a transaction
+  deleteTransaction: publicProcedure
+    .input(
+      z.object({
+        transactionId: z.number(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const supabase = getSupabaseClient();
+
+        // Delete transaction (entries will be cascade deleted)
+        const { error } = await supabase
+          .from("accounting_transactions")
+          .delete()
+          .eq("id", input.transactionId);
+
+        if (error) {
+          throw new Error(`Failed to delete transaction: ${error.message}`);
+        }
+
+        return { success: true };
+      } catch (error) {
+        throw new Error(`Failed to delete transaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }),
 
@@ -437,4 +486,43 @@ export const accountingRouter = router({
       return [];
     }
   }),
+
+  // Create a new vendor
+  createVendor: publicProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+        contactPerson: z.string().optional(),
+        email: z.string().email().optional().or(z.literal("")),
+        phone: z.string().optional(),
+        address: z.string().optional(),
+        taxId: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const supabase = getSupabaseClient();
+        
+        const { data, error } = await supabase
+          .from("accounting_vendors")
+          .insert({
+            name: input.name,
+            contact_person: input.contactPerson || null,
+            email: input.email || null,
+            phone: input.phone || null,
+            address: input.address || null,
+            tax_id: input.taxId || null,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          throw new Error(`Failed to create vendor: ${error.message}`);
+        }
+
+        return { success: true, vendor: data };
+      } catch (error) {
+        throw new Error(`Failed to create vendor: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }),
 });

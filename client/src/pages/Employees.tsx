@@ -13,6 +13,7 @@ import { Plus, Edit, Trash2, Mail, MapPin, Calendar as CalendarIcon, Briefcase, 
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { api, Employee, KycDocument, auth } from "@/lib/supabase";
+import { formatDate as formatDateDisplay } from "@/lib/utils";
 
 export default function Employees() {
   const [open, setOpen] = useState(false);
@@ -531,13 +532,8 @@ export default function Employees() {
     }).format(amount);
   };
 
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
+  // Use shared formatDate from utils
+  const formatDate = formatDateDisplay;
 
   return (
     <DashboardLayout>

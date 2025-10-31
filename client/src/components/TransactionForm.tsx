@@ -9,10 +9,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Plus, Trash2, Calendar as CalendarIcon } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { format } from "date-fns";
+import { formatDate } from "@/lib/utils";
 
 interface Entry {
   accountId: number;
@@ -21,20 +26,50 @@ interface Entry {
   description: string;
   debit: number;
   credit: number;
+  debitInput?: string; // String value for input display
+  creditInput?: string; // String value for input display
 }
 
 export function TransactionForm() {
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [description, setDescription] = useState("");
   const [reference, setReference] = useState("");
   const [status, setStatus] = useState<"draft" | "posted">("draft");
   const [entries, setEntries] = useState<Entry[]>([
-    { accountId: 0, description: "", debit: 0, credit: 0 },
+    { accountId: 0, description: "", debit: 0, credit: 0, debitInput: "", creditInput: "" },
   ]);
 
+  const [showAddVendor, setShowAddVendor] = useState(false);
+  const [newVendorName, setNewVendorName] = useState("");
+  const [newVendorEmail, setNewVendorEmail] = useState("");
+  const [newVendorPhone, setNewVendorPhone] = useState("");
+
+  const utils = trpc.useUtils();
   const { data: accounts, isLoading: accountsLoading, error: accountsError } = trpc.accounting.getAccounts.useQuery();
   const { data: categories, isLoading: categoriesLoading, error: categoriesError } = trpc.accounting.getCategories.useQuery();
   const { data: vendors, isLoading: vendorsLoading, error: vendorsError } = trpc.accounting.getVendors.useQuery();
+
+  const createVendor = trpc.accounting.createVendor.useMutation({
+    onSuccess: (data) => {
+      toast.success("Vendor created successfully");
+      setShowAddVendor(false);
+      setNewVendorName("");
+      setNewVendorEmail("");
+      setNewVendorPhone("");
+      utils.accounting.getVendors.invalidate();
+      if (data.vendor) {
+        // Optionally auto-select the new vendor for the current entry
+        if (entries.length > 0) {
+          const lastEntryIndex = entries.length - 1;
+          updateEntry(lastEntryIndex, "vendorId", data.vendor.id);
+        }
+      }
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to create vendor");
+    },
+  });
 
   // Log errors and data for debugging
   useEffect(() => {
@@ -63,12 +98,17 @@ export function TransactionForm() {
   const createTransaction = trpc.accounting.createTransaction.useMutation({
     onSuccess: () => {
       toast.success("Transaction created successfully");
+      // Invalidate and refetch transactions and summary
+      utils.accounting.getTransactions.invalidate();
+      utils.accounting.getSummary.invalidate();
       // Reset form
-      setDate(new Date().toISOString().split("T")[0]);
+      const today = new Date();
+      setSelectedDate(today);
+      setDate(today.toISOString().split("T")[0]);
       setDescription("");
       setReference("");
       setStatus("draft");
-      setEntries([{ accountId: 0, description: "", debit: 0, credit: 0 }]);
+      setEntries([{ accountId: 0, description: "", debit: 0, credit: 0, debitInput: "", creditInput: "" }]);
     },
     onError: (error) => {
       toast.error(error.message || "Failed to create transaction");
@@ -76,7 +116,7 @@ export function TransactionForm() {
   });
 
   const addEntry = () => {
-    setEntries([...entries, { accountId: 0, description: "", debit: 0, credit: 0 }]);
+    setEntries([...entries, { accountId: 0, description: "", debit: 0, credit: 0, debitInput: "", creditInput: "" }]);
   };
 
   const removeEntry = (index: number) => {
@@ -92,17 +132,60 @@ export function TransactionForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Normalize entries - ensure numeric values are set from input strings
+    const normalizedEntries = entries.map((entry) => {
+      let debit = entry.debit || 0;
+      let credit = entry.credit || 0;
+
+      // If there's an input string, parse it and use that value
+      if (entry.debitInput && entry.debitInput.trim() !== "") {
+        const parsed = parseFloat(entry.debitInput);
+        if (!isNaN(parsed) && parsed > 0) {
+          debit = parsed;
+          credit = 0;
+        }
+      }
+
+      if (entry.creditInput && entry.creditInput.trim() !== "") {
+        const parsed = parseFloat(entry.creditInput);
+        if (!isNaN(parsed) && parsed > 0) {
+          credit = parsed;
+          debit = 0;
+        }
+      }
+
+      return {
+        ...entry,
+        debit,
+        credit,
+      };
+    });
+
     // Validate entries
-    const totalDebit = entries.reduce((sum, e) => sum + e.debit, 0);
-    const totalCredit = entries.reduce((sum, e) => sum + e.credit, 0);
+    const totalDebit = normalizedEntries.reduce((sum, e) => sum + e.debit, 0);
+    const totalCredit = normalizedEntries.reduce((sum, e) => sum + e.credit, 0);
 
     if (totalDebit !== totalCredit) {
       toast.error(`Transaction unbalanced: Debit (${totalDebit}) ≠ Credit (${totalCredit})`);
       return;
     }
 
-    if (entries.some((e) => !e.accountId || e.accountId === 0)) {
+    if (normalizedEntries.some((e) => !e.accountId || e.accountId === 0)) {
       toast.error("Please select an account for all entries");
+      return;
+    }
+
+    // Validate each entry has either debit or credit
+    const invalidEntries = normalizedEntries.filter((e) => e.debit === 0 && e.credit === 0);
+    if (invalidEntries.length > 0) {
+      toast.error("Each entry must have either a debit or credit amount");
+      return;
+    }
+
+    // Validate no entry has both debit and credit
+    const doubleEntries = normalizedEntries.filter((e) => e.debit > 0 && e.credit > 0);
+    if (doubleEntries.length > 0) {
+      toast.error("Each entry can only have either debit or credit, not both");
       return;
     }
 
@@ -111,7 +194,7 @@ export function TransactionForm() {
       description,
       reference,
       status,
-      entries: entries.map((e) => ({
+      entries: normalizedEntries.map((e) => ({
         accountId: e.accountId,
         categoryId: e.categoryId,
         vendorId: e.vendorId,
@@ -122,8 +205,42 @@ export function TransactionForm() {
     });
   };
 
-  const totalDebit = entries.reduce((sum, e) => sum + e.debit, 0);
-  const totalCredit = entries.reduce((sum, e) => sum + e.credit, 0);
+  // Calculate totals including parsed input values for display
+  const calculateTotals = () => {
+    return entries.reduce(
+      (acc, entry) => {
+        let debit = 0;
+        let credit = 0;
+
+        // Check input strings first (most recent user input)
+        if (entry.debitInput && entry.debitInput.trim() !== "") {
+          const parsed = parseFloat(entry.debitInput);
+          if (!isNaN(parsed) && parsed >= 0) {
+            debit = parsed;
+          }
+        } else if (entry.debit && entry.debit > 0) {
+          debit = entry.debit;
+        }
+
+        if (entry.creditInput && entry.creditInput.trim() !== "") {
+          const parsed = parseFloat(entry.creditInput);
+          if (!isNaN(parsed) && parsed >= 0) {
+            credit = parsed;
+          }
+        } else if (entry.credit && entry.credit > 0) {
+          credit = entry.credit;
+        }
+
+        return {
+          totalDebit: acc.totalDebit + debit,
+          totalCredit: acc.totalCredit + credit,
+        };
+      },
+      { totalDebit: 0, totalCredit: 0 }
+    );
+  };
+
+  const { totalDebit, totalCredit } = calculateTotals();
   const isBalanced = totalDebit === totalCredit;
 
   return (
@@ -138,14 +255,34 @@ export function TransactionForm() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="date">Date *</Label>
-              <Input
-                id="date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                required
-              />
+              <Label>Date *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    className={`w-full justify-start text-left font-normal ${!selectedDate && "text-muted-foreground"}`}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {selectedDate ? formatDate(selectedDate) : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => {
+                      setSelectedDate(date);
+                      if (date) {
+                        setDate(format(date, "yyyy-MM-dd"));
+                      }
+                    }}
+                    captionLayout="dropdown"
+                    fromYear={2020}
+                    toYear={new Date().getFullYear() + 1}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label>Status *</Label>
@@ -186,7 +323,12 @@ export function TransactionForm() {
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <Label>Entries</Label>
+              <div className="flex flex-col">
+                <Label>Entries</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Double-entry requires at least 2 entries with matching debit and credit totals
+                </p>
+              </div>
               <Button type="button" variant="outline" size="sm" onClick={addEntry}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Entry
@@ -278,30 +420,41 @@ export function TransactionForm() {
                   </div>
                   <div className="space-y-2">
                     <Label>Vendor</Label>
-                    <Select
-                      value={entry.vendorId && entry.vendorId > 0 ? entry.vendorId.toString() : undefined}
-                      onValueChange={(value) =>
-                        updateEntry(index, "vendorId", value ? parseInt(value) : undefined)
-                      }
-                      disabled={vendorsLoading}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={vendorsLoading ? "Loading..." : "Select vendor (optional)"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {vendorsLoading ? (
-                          <SelectItem value="loading" disabled>Loading vendors...</SelectItem>
-                        ) : vendors && vendors.length > 0 ? (
-                          vendors.map((vendor) => (
-                            <SelectItem key={vendor.id} value={vendor.id.toString()}>
-                              {vendor.name}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="no-vendors" disabled>No vendors available</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-2">
+                      <Select
+                        value={entry.vendorId && entry.vendorId > 0 ? entry.vendorId.toString() : undefined}
+                        onValueChange={(value) =>
+                          updateEntry(index, "vendorId", value ? parseInt(value) : undefined)
+                        }
+                        disabled={vendorsLoading}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder={vendorsLoading ? "Loading..." : "Select vendor (optional)"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {vendorsLoading ? (
+                            <SelectItem value="loading" disabled>Loading vendors...</SelectItem>
+                          ) : vendors && vendors.length > 0 ? (
+                            vendors.map((vendor) => (
+                              <SelectItem key={vendor.id} value={vendor.id.toString()}>
+                                {vendor.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="no-vendors" disabled>No vendors available</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setShowAddVendor(true)}
+                        title="Add new vendor"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
@@ -309,14 +462,51 @@ export function TransactionForm() {
                   <div className="space-y-2">
                     <Label>Debit</Label>
                     <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={entry.debit || ""}
+                      type="text"
+                      inputMode="decimal"
+                      value={entry.debitInput ?? ""}
                       onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
-                        updateEntry(index, "debit", val);
-                        updateEntry(index, "credit", 0);
+                        const inputValue = e.target.value;
+                        const newEntries = [...entries];
+                        const currentEntry = { ...newEntries[index] };
+                        
+                        // Always update the input string to allow free typing
+                        currentEntry.debitInput = inputValue;
+                        
+                        // Try to parse the value for numeric calculations
+                        const val = parseFloat(inputValue);
+                        if (inputValue === "") {
+                          currentEntry.debit = 0;
+                        } else if (!isNaN(val) && val >= 0) {
+                          currentEntry.debit = val;
+                          // Clear credit if debit has a positive value
+                          if (val > 0) {
+                            currentEntry.credit = 0;
+                            currentEntry.creditInput = "";
+                          }
+                        }
+                        
+                        newEntries[index] = currentEntry;
+                        setEntries(newEntries);
+                      }}
+                      onBlur={(e) => {
+                        const inputValue = e.target.value.trim();
+                        const val = parseFloat(inputValue);
+                        const newEntries = [...entries];
+                        const currentEntry = { ...newEntries[index] };
+                        
+                        if (inputValue === "" || isNaN(val) || val === 0) {
+                          currentEntry.debit = 0;
+                          currentEntry.debitInput = "";
+                        } else if (val > 0) {
+                          currentEntry.debit = val;
+                          currentEntry.debitInput = String(val);
+                          currentEntry.credit = 0;
+                          currentEntry.creditInput = "";
+                        }
+                        
+                        newEntries[index] = currentEntry;
+                        setEntries(newEntries);
                       }}
                       placeholder="0.00"
                     />
@@ -324,14 +514,51 @@ export function TransactionForm() {
                   <div className="space-y-2">
                     <Label>Credit</Label>
                     <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={entry.credit || ""}
+                      type="text"
+                      inputMode="decimal"
+                      value={entry.creditInput ?? ""}
                       onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
-                        updateEntry(index, "credit", val);
-                        updateEntry(index, "debit", 0);
+                        const inputValue = e.target.value;
+                        const newEntries = [...entries];
+                        const currentEntry = { ...newEntries[index] };
+                        
+                        // Always update the input string to allow free typing
+                        currentEntry.creditInput = inputValue;
+                        
+                        // Try to parse the value for numeric calculations
+                        const val = parseFloat(inputValue);
+                        if (inputValue === "") {
+                          currentEntry.credit = 0;
+                        } else if (!isNaN(val) && val >= 0) {
+                          currentEntry.credit = val;
+                          // Clear debit if credit has a positive value
+                          if (val > 0) {
+                            currentEntry.debit = 0;
+                            currentEntry.debitInput = "";
+                          }
+                        }
+                        
+                        newEntries[index] = currentEntry;
+                        setEntries(newEntries);
+                      }}
+                      onBlur={(e) => {
+                        const inputValue = e.target.value.trim();
+                        const val = parseFloat(inputValue);
+                        const newEntries = [...entries];
+                        const currentEntry = { ...newEntries[index] };
+                        
+                        if (inputValue === "" || isNaN(val) || val === 0) {
+                          currentEntry.credit = 0;
+                          currentEntry.creditInput = "";
+                        } else if (val > 0) {
+                          currentEntry.credit = val;
+                          currentEntry.creditInput = String(val);
+                          currentEntry.debit = 0;
+                          currentEntry.debitInput = "";
+                        }
+                        
+                        newEntries[index] = currentEntry;
+                        setEntries(newEntries);
                       }}
                       placeholder="0.00"
                     />
@@ -372,6 +599,77 @@ export function TransactionForm() {
             {createTransaction.isPending ? "Creating..." : "Create Transaction"}
           </Button>
         </form>
+
+        {/* Add Vendor Dialog */}
+        <Dialog open={showAddVendor} onOpenChange={setShowAddVendor}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Vendor</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="vendorName">Vendor Name *</Label>
+                <Input
+                  id="vendorName"
+                  value={newVendorName}
+                  onChange={(e) => setNewVendorName(e.target.value)}
+                  placeholder="Enter vendor name"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vendorEmail">Email</Label>
+                <Input
+                  id="vendorEmail"
+                  type="email"
+                  value={newVendorEmail}
+                  onChange={(e) => setNewVendorEmail(e.target.value)}
+                  placeholder="vendor@example.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vendorPhone">Phone</Label>
+                <Input
+                  id="vendorPhone"
+                  value={newVendorPhone}
+                  onChange={(e) => setNewVendorPhone(e.target.value)}
+                  placeholder="+91 1234567890"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowAddVendor(false);
+                    setNewVendorName("");
+                    setNewVendorEmail("");
+                    setNewVendorPhone("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (!newVendorName.trim()) {
+                      toast.error("Vendor name is required");
+                      return;
+                    }
+                    createVendor.mutate({
+                      name: newVendorName.trim(),
+                      email: newVendorEmail.trim() || undefined,
+                      phone: newVendorPhone.trim() || undefined,
+                    });
+                  }}
+                  disabled={createVendor.isPending || !newVendorName.trim()}
+                >
+                  {createVendor.isPending ? "Creating..." : "Create Vendor"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
