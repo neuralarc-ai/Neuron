@@ -179,7 +179,13 @@ export const accountingRouter = router({
     )
     .query(async ({ input, ctx }) => {
       try {
-        const supabase = getSupabaseClient();
+        let supabase;
+        try {
+          supabase = getSupabaseClient();
+        } catch (supabaseError) {
+          console.error("[Accounting] Failed to get Supabase client:", supabaseError);
+          throw new Error(`Database connection failed: ${supabaseError instanceof Error ? supabaseError.message : 'Unknown error'}. Please check environment variables.`);
+        }
         
         let query = supabase
           .from("accounting_transactions")
@@ -294,7 +300,13 @@ export const accountingRouter = router({
     )
     .query(async ({ input, ctx }) => {
       try {
-        const supabase = getSupabaseClient();
+        let supabase;
+        try {
+          supabase = getSupabaseClient();
+        } catch (supabaseError) {
+          console.error("[Accounting] Failed to get Supabase client:", supabaseError);
+          throw new Error(`Database connection failed: ${supabaseError instanceof Error ? supabaseError.message : 'Unknown error'}. Please check environment variables.`);
+        }
         const startDate = `${input.year}-${String(input.month).padStart(2, "0")}-01`;
         const endDate = `${input.year}-${String(input.month).padStart(2, "0")}-31`;
 
@@ -397,7 +409,13 @@ export const accountingRouter = router({
   // Get all categories
   getCategories: publicProcedure.query(async ({ ctx }) => {
     try {
-      const supabase = getSupabaseClient();
+      let supabase;
+      try {
+        supabase = getSupabaseClient();
+      } catch (supabaseError) {
+        console.error("[Accounting] Failed to get Supabase client:", supabaseError);
+        throw new Error(`Database connection failed: ${supabaseError instanceof Error ? supabaseError.message : 'Unknown error'}. Please check environment variables.`);
+      }
 
       const { data: categories, error } = await supabase
         .from("accounting_categories")
@@ -433,7 +451,13 @@ export const accountingRouter = router({
   // Get all accounts
   getAccounts: publicProcedure.query(async ({ ctx }) => {
     try {
-      const supabase = getSupabaseClient();
+      let supabase;
+      try {
+        supabase = getSupabaseClient();
+      } catch (supabaseError) {
+        console.error("[Accounting] Failed to get Supabase client:", supabaseError);
+        throw new Error(`Database connection failed: ${supabaseError instanceof Error ? supabaseError.message : 'Unknown error'}. Please check environment variables.`);
+      }
 
       const { data: accounts, error } = await supabase
         .from("accounting_accounts")
@@ -469,7 +493,13 @@ export const accountingRouter = router({
   // Get all vendors
   getVendors: publicProcedure.query(async ({ ctx }) => {
     try {
-      const supabase = getSupabaseClient();
+      let supabase;
+      try {
+        supabase = getSupabaseClient();
+      } catch (supabaseError) {
+        console.error("[Accounting] Failed to get Supabase client:", supabaseError);
+        throw new Error(`Database connection failed: ${supabaseError instanceof Error ? supabaseError.message : 'Unknown error'}. Please check environment variables.`);
+      }
 
       const { data: vendors, error } = await supabase
         .from("accounting_vendors")

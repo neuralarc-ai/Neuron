@@ -92,14 +92,46 @@ async function startServer() {
   );
   
 
-  // tRPC API
+  // tRPC API with proper error handling
   app.use(
     "/api/trpc",
     createExpressMiddleware({
       router: appRouter,
-      createContext,
+      createContext: async (opts) => {
+        try {
+          return await createContext(opts);
+        } catch (error) {
+          console.error("[tRPC Context] Error creating context:", error);
+          // Don't throw here, let tRPC handle it
+          throw error;
+        }
+      },
+      onError: ({ error, path, type, ctx, req }) => {
+        console.error(`[tRPC] Error on path ${path ?? 'unknown'}:`, error);
+        console.error(`[tRPC] Error type: ${type}`);
+        console.error(`[tRPC] Error message: ${error.message}`);
+        console.error(`[tRPC] Error code: ${error.code}`);
+        console.error(`[tRPC] Error stack:`, error.stack);
+        
+        // Make sure we always return JSON, not HTML
+        if (ctx?.res && !ctx.res.headersSent) {
+          ctx.res.setHeader('Content-Type', 'application/json');
+        }
+      },
     })
   );
+
+  // Global error handler for unhandled routes (must be last)
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error("[Express] Final error handler:", err);
+    if (!res.headersSent) {
+      res.setHeader('Content-Type', 'application/json');
+      res.status(err.status || 500).json({
+        error: 'Internal Server Error',
+        message: err.message || 'An unexpected error occurred',
+      });
+    }
+  });
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
