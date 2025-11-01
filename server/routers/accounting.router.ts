@@ -410,18 +410,20 @@ export const accountingRouter = router({
     try {
       const supabase = getSupabaseClient();
 
+      // Select only necessary columns for better performance
       const { data: categories, error } = await supabase
         .from("accounting_categories")
-        .select("*")
+        .select("id, name, description, type, is_active")
         .eq("is_active", true)
-        .order("name");
+        .order("name")
+        .limit(1000); // Add limit to prevent huge queries
 
       if (error) {
         console.error("[Accounting] Categories query error:", error);
         console.error("[Accounting] Error code:", error.code);
         console.error("[Accounting] Error details:", error.details);
         console.error("[Accounting] Error hint:", error.hint);
-        return [];
+        throw new Error(`Failed to load categories: ${error.message}`);
       }
 
       console.log(`[Accounting] getCategories: Found ${categories?.length || 0} categories`);
@@ -431,8 +433,9 @@ export const accountingRouter = router({
       if (error instanceof Error) {
         console.error("[Accounting] Error message:", error.message);
         console.error("[Accounting] Error stack:", error.stack);
+        throw error; // Re-throw to let tRPC handle it properly
       }
-      return [];
+      throw new Error("Failed to load categories");
     }
   }),
 
@@ -441,18 +444,20 @@ export const accountingRouter = router({
     try {
       const supabase = getSupabaseClient();
 
+      // Select only necessary columns for better performance
       const { data: accounts, error } = await supabase
         .from("accounting_accounts")
-        .select("*")
+        .select("id, code, name, type, parent_id, balance, is_active")
         .eq("is_active", true)
-        .order("code");
+        .order("code")
+        .limit(1000); // Add limit to prevent huge queries
 
       if (error) {
         console.error("[Accounting] Accounts query error:", error);
         console.error("[Accounting] Error code:", error.code);
         console.error("[Accounting] Error details:", error.details);
         console.error("[Accounting] Error hint:", error.hint);
-        return [];
+        throw new Error(`Failed to load accounts: ${error.message}`);
       }
 
       console.log(`[Accounting] getAccounts: Found ${accounts?.length || 0} accounts`);
@@ -462,8 +467,9 @@ export const accountingRouter = router({
       if (error instanceof Error) {
         console.error("[Accounting] Error message:", error.message);
         console.error("[Accounting] Error stack:", error.stack);
+        throw error; // Re-throw to let tRPC handle it properly
       }
-      return [];
+      throw new Error("Failed to load accounts");
     }
   }),
 

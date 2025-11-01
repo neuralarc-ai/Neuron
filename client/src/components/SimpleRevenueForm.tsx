@@ -50,8 +50,33 @@ export function SimpleRevenueForm() {
     },
   ]);
 
-  const { data: accounts, isLoading: accountsLoading } = trpc.accounting.getAccounts.useQuery();
-  const { data: categories, isLoading: categoriesLoading } = trpc.accounting.getCategories.useQuery();
+  // Add error handling and retry logic for accounts and categories
+  const { data: accounts, isLoading: accountsLoading, error: accountsError } = trpc.accounting.getAccounts.useQuery(
+    undefined,
+    {
+      retry: 2, // Retry twice on failure
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 3000),
+      staleTime: 30000, // Cache for 30 seconds
+      onError: (error) => {
+        console.error("[SimpleRevenueForm] Accounts query failed:", error);
+        toast.error("Failed to load accounts. Please refresh the page.");
+      },
+    }
+  );
+
+  const { data: categories, isLoading: categoriesLoading, error: categoriesError } = trpc.accounting.getCategories.useQuery(
+    undefined,
+    {
+      retry: 2, // Retry twice on failure
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 3000),
+      staleTime: 30000, // Cache for 30 seconds
+      onError: (error) => {
+        console.error("[SimpleRevenueForm] Categories query failed:", error);
+        toast.error("Failed to load categories. Categories will be optional.");
+      },
+    }
+  );
+
   // Make vendors query optional with error handling - don't block form if it fails
   const { data: vendors, isLoading: vendorsLoading, error: vendorsError } = trpc.accounting.getVendors.useQuery(
     undefined,
@@ -332,13 +357,27 @@ export function SimpleRevenueForm() {
                       <Select
                         value={row.accountId > 0 ? row.accountId.toString() : undefined}
                         onValueChange={(value) => updateRow(row.id, "accountId", parseInt(value))}
-                        disabled={accountsLoading}
+                        disabled={accountsLoading || accountsError}
                       >
                         <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Select account" />
+                          <SelectValue 
+                            placeholder={
+                              accountsLoading 
+                                ? "Loading accounts..." 
+                                : accountsError 
+                                  ? "Error loading accounts" 
+                                  : accounts && accounts.length === 0
+                                    ? "No accounts available"
+                                    : "Select account"
+                            } 
+                          />
                         </SelectTrigger>
                         <SelectContent>
-                          {relevantAccounts && relevantAccounts.length > 0 ? (
+                          {accountsLoading ? (
+                            <SelectItem value="loading" disabled>Loading accounts...</SelectItem>
+                          ) : accountsError ? (
+                            <SelectItem value="error" disabled>Error: {accountsError.message || "Failed to load"}</SelectItem>
+                          ) : relevantAccounts && relevantAccounts.length > 0 ? (
                             relevantAccounts
                               .filter((acc) => acc.type === (transactionType === "revenue" ? "revenue" : "expense"))
                               .map((account) => (
@@ -346,8 +385,12 @@ export function SimpleRevenueForm() {
                                   {account.code} - {account.name}
                                 </SelectItem>
                               ))
+                          ) : accounts && accounts.length > 0 ? (
+                            <SelectItem value="no-match" disabled>
+                              No {transactionType === "revenue" ? "revenue" : "expense"} accounts found
+                            </SelectItem>
                           ) : (
-                            <SelectItem value="none" disabled>No accounts</SelectItem>
+                            <SelectItem value="none" disabled>No accounts available</SelectItem>
                           )}
                         </SelectContent>
                       </Select>
@@ -356,20 +399,32 @@ export function SimpleRevenueForm() {
                       <Select
                         value={row.categoryId ? row.categoryId.toString() : undefined}
                         onValueChange={(value) => updateRow(row.id, "categoryId", value ? parseInt(value) : undefined)}
-                        disabled={categoriesLoading}
+                        disabled={categoriesLoading || categoriesError}
                       >
                         <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Optional" />
+                          <SelectValue 
+                            placeholder={
+                              categoriesLoading 
+                                ? "Loading..." 
+                                : categoriesError 
+                                  ? "Error loading" 
+                                  : "Optional"
+                            } 
+                          />
                         </SelectTrigger>
                         <SelectContent>
-                          {categories && categories.length > 0 ? (
+                          {categoriesLoading ? (
+                            <SelectItem value="loading" disabled>Loading categories...</SelectItem>
+                          ) : categoriesError ? (
+                            <SelectItem value="error" disabled>Error: {categoriesError.message || "Failed to load"}</SelectItem>
+                          ) : categories && categories.length > 0 ? (
                             categories.map((category) => (
                               <SelectItem key={category.id} value={category.id.toString()}>
                                 {category.name}
                               </SelectItem>
                             ))
                           ) : (
-                            <SelectItem value="none" disabled>No categories</SelectItem>
+                            <SelectItem value="none" disabled>No categories available</SelectItem>
                           )}
                         </SelectContent>
                       </Select>
