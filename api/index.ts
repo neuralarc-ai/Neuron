@@ -47,14 +47,32 @@ export default async function handler(request: Request) {
   // Handle tRPC requests
   if (pathname.startsWith('/api/trpc')) {
     try {
+      // Ensure request.url is a valid URL for fetchRequestHandler
+      let validRequest = request;
+      try {
+        // Try to validate the URL - if it fails, we'll reconstruct it
+        new URL(request.url);
+      } catch {
+        // If URL is invalid, reconstruct it using headers
+        const host = request.headers.get('host') || request.headers.get('x-vercel-host') || 'localhost';
+        const protocol = request.headers.get('x-forwarded-proto') || 'https';
+        const url = `${protocol}://${host}${pathname}${request.url.includes('?') ? request.url.substring(request.url.indexOf('?')) : ''}`;
+        // Create a new Request with the valid URL
+        validRequest = new Request(url, {
+          method: request.method,
+          headers: request.headers,
+          body: request.body,
+        });
+      }
+
       return await fetchRequestHandler({
         endpoint: '/api/trpc',
-        req: request,
+        req: validRequest,
         router: appRouter,
         createContext: async () => {
           // Create context for Vercel environment
           return createContext({
-            req: request as any,
+            req: validRequest as any,
             res: undefined,
           });
         },

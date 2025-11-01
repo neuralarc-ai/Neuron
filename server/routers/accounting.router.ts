@@ -410,13 +410,33 @@ export const accountingRouter = router({
     try {
       const supabase = getSupabaseClient();
 
-      // Select only necessary columns for better performance
-      const { data: categories, error } = await supabase
+      // Add timeout to prevent Vercel 504 errors (fail fast at 8 seconds)
+      const queryPromise = supabase
         .from("accounting_categories")
         .select("id, name, description, type, is_active")
         .eq("is_active", true)
         .order("name")
         .limit(1000); // Add limit to prevent huge queries
+
+      const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((_, reject) =>
+        setTimeout(() => reject(new Error("Query timeout: Categories query took too long")), 8000)
+      );
+
+      let result;
+      try {
+        result = await Promise.race([
+          queryPromise,
+          timeoutPromise.catch((err) => ({ data: null, error: { message: err.message } })),
+        ]);
+      } catch (error) {
+        // If timeout wins the race, it will throw
+        if (error instanceof Error && error.message.includes("timeout")) {
+          throw new Error("Categories query timed out. Please try again or contact support.");
+        }
+        throw error;
+      }
+
+      const { data: categories, error } = result as { data: any; error: any };
 
       if (error) {
         console.error("[Accounting] Categories query error:", error);
@@ -433,6 +453,10 @@ export const accountingRouter = router({
       if (error instanceof Error) {
         console.error("[Accounting] Error message:", error.message);
         console.error("[Accounting] Error stack:", error.stack);
+        // If it's a timeout, provide a helpful message
+        if (error.message.includes("timeout")) {
+          throw new Error("Categories query timed out. Please try again or contact support.");
+        }
         throw error; // Re-throw to let tRPC handle it properly
       }
       throw new Error("Failed to load categories");
@@ -444,13 +468,33 @@ export const accountingRouter = router({
     try {
       const supabase = getSupabaseClient();
 
-      // Select only necessary columns for better performance
-      const { data: accounts, error } = await supabase
+      // Add timeout to prevent Vercel 504 errors (fail fast at 8 seconds)
+      const queryPromise = supabase
         .from("accounting_accounts")
         .select("id, code, name, type, parent_id, balance, is_active")
         .eq("is_active", true)
         .order("code")
         .limit(1000); // Add limit to prevent huge queries
+
+      const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((_, reject) =>
+        setTimeout(() => reject(new Error("Query timeout: Accounts query took too long")), 8000)
+      );
+
+      let result;
+      try {
+        result = await Promise.race([
+          queryPromise,
+          timeoutPromise.catch((err) => ({ data: null, error: { message: err.message } })),
+        ]);
+      } catch (error) {
+        // If timeout wins the race, it will throw
+        if (error instanceof Error && error.message.includes("timeout")) {
+          throw new Error("Accounts query timed out. Please try again or contact support.");
+        }
+        throw error;
+      }
+
+      const { data: accounts, error } = result as { data: any; error: any };
 
       if (error) {
         console.error("[Accounting] Accounts query error:", error);
@@ -467,6 +511,10 @@ export const accountingRouter = router({
       if (error instanceof Error) {
         console.error("[Accounting] Error message:", error.message);
         console.error("[Accounting] Error stack:", error.stack);
+        // If it's a timeout, provide a helpful message
+        if (error.message.includes("timeout")) {
+          throw new Error("Accounts query timed out. Please try again or contact support.");
+        }
         throw error; // Re-throw to let tRPC handle it properly
       }
       throw new Error("Failed to load accounts");
