@@ -32,15 +32,7 @@ export async function createContext(
     // For now, we'll use session-based auth primarily
   }
 
-  let supabase;
-  try {
-    supabase = getSupabaseClient();
-  } catch (error) {
-    console.error("[Context] Failed to initialize Supabase client:", error);
-    // Return a dummy client that will throw errors on use
-    // This allows the tRPC error handler to catch it properly
-    throw new Error(`Supabase client initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
+  const supabase = getSupabaseClient();
 
   return {
     req: opts.req,

@@ -42,21 +42,10 @@ const trpcClient = trpc.createClient({
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
-      headers() {
-        return {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        };
-      },
       fetch(input, init) {
         return globalThis.fetch(input, {
           ...(init ?? {}),
           credentials: "include",
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            ...(init?.headers as Record<string, string> || {}),
-          },
         });
       },
     }),

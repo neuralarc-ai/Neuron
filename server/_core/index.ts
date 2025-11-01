@@ -71,24 +71,10 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
   
-  // CORS middleware for tRPC requests
-  app.use((req, res, next) => {
-    if (req.path.startsWith('/api/trpc')) {
-      res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization');
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-      res.setHeader('Content-Type', 'application/json');
-      
-      if (req.method === 'OPTIONS') {
-        return res.sendStatus(200);
-      }
-    }
-    next();
-  });
+
   
   // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb", type: ['application/json', 'text/json'] }));
+  app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   
   // Session middleware
@@ -106,46 +92,14 @@ async function startServer() {
   );
   
 
-  // tRPC API with proper error handling
+  // tRPC API
   app.use(
     "/api/trpc",
     createExpressMiddleware({
       router: appRouter,
-      createContext: async (opts) => {
-        try {
-          return await createContext(opts);
-        } catch (error) {
-          console.error("[tRPC Context] Error creating context:", error);
-          // Don't throw here, let tRPC handle it
-          throw error;
-        }
-      },
-      onError: ({ error, path, type, ctx, req }) => {
-        console.error(`[tRPC] Error on path ${path ?? 'unknown'}:`, error);
-        console.error(`[tRPC] Error type: ${type}`);
-        console.error(`[tRPC] Error message: ${error.message}`);
-        console.error(`[tRPC] Error code: ${error.code}`);
-        console.error(`[tRPC] Error stack:`, error.stack);
-        
-        // Make sure we always return JSON, not HTML
-        if (ctx?.res && !ctx.res.headersSent) {
-          ctx.res.setHeader('Content-Type', 'application/json');
-        }
-      },
+      createContext,
     })
   );
-
-  // Global error handler for unhandled routes (must be last)
-  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    console.error("[Express] Final error handler:", err);
-    if (!res.headersSent) {
-      res.setHeader('Content-Type', 'application/json');
-      res.status(err.status || 500).json({
-        error: 'Internal Server Error',
-        message: err.message || 'An unexpected error occurred',
-      });
-    }
-  });
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);

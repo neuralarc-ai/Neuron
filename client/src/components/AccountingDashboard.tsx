@@ -24,7 +24,7 @@ export function AccountingDashboard() {
   const [month, setMonth] = useState(currentDate.getMonth() + 1);
   const [year, setYear] = useState(currentDate.getFullYear());
 
-  const { data: summary, isLoading, error: summaryError } = trpc.accounting.getSummary.useQuery({
+  const { data: summary, isLoading } = trpc.accounting.getSummary.useQuery({
     month,
     year,
   });
@@ -32,22 +32,10 @@ export function AccountingDashboard() {
   // Fetch all transactions (both draft and posted) for display
   const utils = trpc.useUtils();
 
-  const { data: recentTransactions, refetch: refetchTransactions, error: transactionsError } = trpc.accounting.getTransactions.useQuery({
+  const { data: recentTransactions, refetch: refetchTransactions } = trpc.accounting.getTransactions.useQuery({
     limit: 50, // Increase limit to show more transactions
     // Remove status filter to show both draft and posted
   });
-
-  // Show error messages if queries fail
-  useEffect(() => {
-    if (summaryError) {
-      toast.error(`Failed to load summary: ${summaryError.message}`);
-      console.error("[AccountingDashboard] Summary error:", summaryError);
-    }
-    if (transactionsError) {
-      toast.error(`Failed to load transactions: ${transactionsError.message}`);
-      console.error("[AccountingDashboard] Transactions error:", transactionsError);
-    }
-  }, [summaryError, transactionsError]);
 
   // Refetch transactions when component mounts or when month/year changes
   const { refetch: refetchSummary } = trpc.accounting.getSummary.useQuery({
@@ -238,7 +226,7 @@ export function AccountingDashboard() {
       <Card>
         <CardHeader>
           <CardTitle>Transaction Entries</CardTitle>
-          <CardDescription>Detailed view of all transaction entries with debit and credit</CardDescription>
+          <CardDescription>View all your money in (revenue) and money out (expense) transactions</CardDescription>
         </CardHeader>
         <CardContent>
           {recentTransactions && recentTransactions.length > 0 ? (
@@ -297,43 +285,103 @@ export function AccountingDashboard() {
                     </div>
                   </div>
                   {transaction.entries && transaction.entries.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Account</TableHead>
-                          <TableHead>Description</TableHead>
-                          <TableHead className="text-right">Debit</TableHead>
-                          <TableHead className="text-right">Credit</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {transaction.entries.map((entry: any) => {
-                          const debitValue = entry.debit != null ? parseFloat(String(entry.debit)) : 0;
-                          const creditValue = entry.credit != null ? parseFloat(String(entry.credit)) : 0;
-                          const accountDisplay = entry.account 
-                            ? `${entry.account.code} - ${entry.account.name}`
-                            : entry.account_id 
-                            ? `Account ID: ${entry.account_id}`
-                            : "N/A";
-                          return (
-                            <TableRow key={entry.id}>
-                              <TableCell className="font-medium">
-                                {accountDisplay}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {entry.description || "-"}
-                              </TableCell>
-                              <TableCell className="text-right font-medium">
-                                {debitValue > 0 ? `₹${debitValue.toFixed(2)}` : "-"}
-                              </TableCell>
-                              <TableCell className="text-right font-medium">
-                                {creditValue > 0 ? `₹${creditValue.toFixed(2)}` : "-"}
-                              </TableCell>
+                    (() => {
+                      // Determine if this is an expense or revenue transaction
+                      // Expense: has a debit on an expense account
+                      // Revenue: has a credit on a revenue account
+                      const expenseEntry = transaction.entries.find((e: any) => 
+                        e.debit > 0 && e.account && e.account.type === "expense"
+                      );
+                      const revenueEntry = transaction.entries.find((e: any) => 
+                        e.credit > 0 && e.account && e.account.type === "revenue"
+                      );
+                      const cashEntry = transaction.entries.find((e: any) => 
+                        e.account && e.account.type === "asset" && 
+                        (e.account.name.toLowerCase().includes("cash") || e.account.name.toLowerCase().includes("bank"))
+                      );
+                      
+                      // For simple expenses/revenue (from Quick Entry form)
+                      if (expenseEntry || revenueEntry) {
+                        const mainEntry = expenseEntry || revenueEntry;
+                        const amount = expenseEntry ? expenseEntry.debit : revenueEntry?.credit || 0;
+                        const accountDisplay = mainEntry?.account 
+                          ? `${mainEntry.account.code} - ${mainEntry.account.name}`
+                          : "N/A";
+                        const cashAccountDisplay = cashEntry?.account 
+                          ? `${cashEntry.account.code} - ${cashEntry.account.name}`
+                          : "Cash/Bank";
+                        const transactionType = expenseEntry ? "expense" : "revenue";
+                        
+                        return (
+                          <div className="space-y-2 p-3 bg-muted/50 rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  transactionType === "expense"
+                                    ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                                    : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                }`}>
+                                  {transactionType === "expense" ? "💰 Money Out" : "💵 Money In"}
+                                </span>
+                                <span className="font-medium text-sm">{accountDisplay}</span>
+                              </div>
+                              <span className={`font-semibold text-lg ${
+                                transactionType === "expense" ? "text-red-600" : "text-green-600"
+                              }`}>
+                                {transactionType === "expense" ? "-" : "+"}₹{amount.toFixed(2)}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {transactionType === "expense" ? "From" : "To"}: {cashAccountDisplay}
+                            </p>
+                            {mainEntry?.description && (
+                              <p className="text-sm text-muted-foreground mt-1">{mainEntry.description}</p>
+                            )}
+                          </div>
+                        );
+                      }
+                      
+                      // For complex transactions (from Advanced form), show full double-entry table
+                      return (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Account</TableHead>
+                              <TableHead>Description</TableHead>
+                              <TableHead className="text-right">Debit</TableHead>
+                              <TableHead className="text-right">Credit</TableHead>
                             </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
+                          </TableHeader>
+                          <TableBody>
+                            {transaction.entries.map((entry: any) => {
+                              const debitValue = entry.debit != null ? parseFloat(String(entry.debit)) : 0;
+                              const creditValue = entry.credit != null ? parseFloat(String(entry.credit)) : 0;
+                              const accountDisplay = entry.account 
+                                ? `${entry.account.code} - ${entry.account.name}`
+                                : entry.account_id 
+                                ? `Account ID: ${entry.account_id}`
+                                : "N/A";
+                              return (
+                                <TableRow key={entry.id}>
+                                  <TableCell className="font-medium">
+                                    {accountDisplay}
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">
+                                    {entry.description || "-"}
+                                  </TableCell>
+                                  <TableCell className="text-right font-medium">
+                                    {debitValue > 0 ? `₹${debitValue.toFixed(2)}` : "-"}
+                                  </TableCell>
+                                  <TableCell className="text-right font-medium">
+                                    {creditValue > 0 ? `₹${creditValue.toFixed(2)}` : "-"}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      );
+                    })()
                   ) : (
                     <p className="text-sm text-muted-foreground py-2">No entries found for this transaction</p>
                   )}

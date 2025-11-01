@@ -179,13 +179,7 @@ export const accountingRouter = router({
     )
     .query(async ({ input, ctx }) => {
       try {
-        let supabase;
-        try {
-          supabase = getSupabaseClient();
-        } catch (supabaseError) {
-          console.error("[Accounting] Failed to get Supabase client:", supabaseError);
-          throw new Error(`Database connection failed: ${supabaseError instanceof Error ? supabaseError.message : 'Unknown error'}. Please check environment variables.`);
-        }
+        const supabase = getSupabaseClient();
         
         let query = supabase
           .from("accounting_transactions")
@@ -300,15 +294,14 @@ export const accountingRouter = router({
     )
     .query(async ({ input, ctx }) => {
       try {
-        let supabase;
-        try {
-          supabase = getSupabaseClient();
-        } catch (supabaseError) {
-          console.error("[Accounting] Failed to get Supabase client:", supabaseError);
-          throw new Error(`Database connection failed: ${supabaseError instanceof Error ? supabaseError.message : 'Unknown error'}. Please check environment variables.`);
-        }
+        const supabase = getSupabaseClient();
         const startDate = `${input.year}-${String(input.month).padStart(2, "0")}-01`;
-        const endDate = `${input.year}-${String(input.month).padStart(2, "0")}-31`;
+        
+        // Calculate the last day of the month properly
+        // Month is 0-indexed in JavaScript Date, so input.month - 1
+        // day 0 gives us the last day of the previous month, so we use input.month (which represents next month) and day 0
+        const lastDay = new Date(input.year, input.month, 0).getDate();
+        const endDate = `${input.year}-${String(input.month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 
         // Get all posted transactions for the month
         const { data: transactions, error: txError } = await supabase
@@ -356,6 +349,9 @@ export const accountingRouter = router({
         }
 
         // Calculate totals by category
+        // For expenses: categories are on debit entries
+        // For revenue: categories are on credit entries
+        // Sum the appropriate side based on which has the category
         const categoryTotals: Record<number, { name: string; total: number }> = {};
 
         entries?.forEach((entry: any) => {
@@ -363,7 +359,10 @@ export const accountingRouter = router({
             if (!categoryTotals[entry.category_id]) {
               categoryTotals[entry.category_id] = { name: "", total: 0 };
             }
-            categoryTotals[entry.category_id].total += parseFloat(entry.debit || entry.credit || 0);
+            // If debit exists, it's an expense category entry; if credit exists, it's a revenue category entry
+            // Only count the non-zero side to avoid double counting
+            const amount = entry.debit > 0 ? entry.debit : entry.credit;
+            categoryTotals[entry.category_id].total += parseFloat(amount || 0);
           }
         });
 
@@ -409,13 +408,7 @@ export const accountingRouter = router({
   // Get all categories
   getCategories: publicProcedure.query(async ({ ctx }) => {
     try {
-      let supabase;
-      try {
-        supabase = getSupabaseClient();
-      } catch (supabaseError) {
-        console.error("[Accounting] Failed to get Supabase client:", supabaseError);
-        throw new Error(`Database connection failed: ${supabaseError instanceof Error ? supabaseError.message : 'Unknown error'}. Please check environment variables.`);
-      }
+      const supabase = getSupabaseClient();
 
       const { data: categories, error } = await supabase
         .from("accounting_categories")
@@ -428,10 +421,7 @@ export const accountingRouter = router({
         console.error("[Accounting] Error code:", error.code);
         console.error("[Accounting] Error details:", error.details);
         console.error("[Accounting] Error hint:", error.hint);
-        console.error("[Accounting] Error message:", error.message);
-        
-        // Throw error instead of returning empty array so frontend knows something went wrong
-        throw new Error(`Failed to fetch categories: ${error.message || 'Unknown error'}. Check RLS policies.`);
+        return [];
       }
 
       console.log(`[Accounting] getCategories: Found ${categories?.length || 0} categories`);
@@ -441,23 +431,15 @@ export const accountingRouter = router({
       if (error instanceof Error) {
         console.error("[Accounting] Error message:", error.message);
         console.error("[Accounting] Error stack:", error.stack);
-        // Re-throw the error so tRPC can handle it properly
-        throw error;
       }
-      throw new Error("Failed to fetch categories: Unknown error");
+      return [];
     }
   }),
 
   // Get all accounts
   getAccounts: publicProcedure.query(async ({ ctx }) => {
     try {
-      let supabase;
-      try {
-        supabase = getSupabaseClient();
-      } catch (supabaseError) {
-        console.error("[Accounting] Failed to get Supabase client:", supabaseError);
-        throw new Error(`Database connection failed: ${supabaseError instanceof Error ? supabaseError.message : 'Unknown error'}. Please check environment variables.`);
-      }
+      const supabase = getSupabaseClient();
 
       const { data: accounts, error } = await supabase
         .from("accounting_accounts")
@@ -470,10 +452,7 @@ export const accountingRouter = router({
         console.error("[Accounting] Error code:", error.code);
         console.error("[Accounting] Error details:", error.details);
         console.error("[Accounting] Error hint:", error.hint);
-        console.error("[Accounting] Error message:", error.message);
-        
-        // Throw error instead of returning empty array so frontend knows something went wrong
-        throw new Error(`Failed to fetch accounts: ${error.message || 'Unknown error'}. Check RLS policies.`);
+        return [];
       }
 
       console.log(`[Accounting] getAccounts: Found ${accounts?.length || 0} accounts`);
@@ -483,23 +462,15 @@ export const accountingRouter = router({
       if (error instanceof Error) {
         console.error("[Accounting] Error message:", error.message);
         console.error("[Accounting] Error stack:", error.stack);
-        // Re-throw the error so tRPC can handle it properly
-        throw error;
       }
-      throw new Error("Failed to fetch accounts: Unknown error");
+      return [];
     }
   }),
 
   // Get all vendors
   getVendors: publicProcedure.query(async ({ ctx }) => {
     try {
-      let supabase;
-      try {
-        supabase = getSupabaseClient();
-      } catch (supabaseError) {
-        console.error("[Accounting] Failed to get Supabase client:", supabaseError);
-        throw new Error(`Database connection failed: ${supabaseError instanceof Error ? supabaseError.message : 'Unknown error'}. Please check environment variables.`);
-      }
+      const supabase = getSupabaseClient();
 
       const { data: vendors, error } = await supabase
         .from("accounting_vendors")
@@ -512,10 +483,7 @@ export const accountingRouter = router({
         console.error("[Accounting] Error code:", error.code);
         console.error("[Accounting] Error details:", error.details);
         console.error("[Accounting] Error hint:", error.hint);
-        console.error("[Accounting] Error message:", error.message);
-        
-        // Throw error instead of returning empty array so frontend knows something went wrong
-        throw new Error(`Failed to fetch vendors: ${error.message || 'Unknown error'}. Check RLS policies.`);
+        return [];
       }
 
       console.log(`[Accounting] getVendors: Found ${vendors?.length || 0} vendors`);
@@ -525,49 +493,8 @@ export const accountingRouter = router({
       if (error instanceof Error) {
         console.error("[Accounting] Error message:", error.message);
         console.error("[Accounting] Error stack:", error.stack);
-        // Re-throw the error so tRPC can handle it properly
-        throw error;
       }
-      throw new Error("Failed to fetch vendors: Unknown error");
+      return [];
     }
   }),
-
-  // Create a new vendor
-  createVendor: publicProcedure
-    .input(
-      z.object({
-        name: z.string().min(1),
-        contactPerson: z.string().optional(),
-        email: z.string().email().optional().or(z.literal("")),
-        phone: z.string().optional(),
-        address: z.string().optional(),
-        taxId: z.string().optional(),
-      })
-    )
-    .mutation(async ({ input, ctx }) => {
-      try {
-        const supabase = getSupabaseClient();
-        
-        const { data, error } = await supabase
-          .from("accounting_vendors")
-          .insert({
-            name: input.name,
-            contact_person: input.contactPerson || null,
-            email: input.email || null,
-            phone: input.phone || null,
-            address: input.address || null,
-            tax_id: input.taxId || null,
-          })
-          .select()
-          .single();
-
-        if (error) {
-          throw new Error(`Failed to create vendor: ${error.message}`);
-        }
-
-        return { success: true, vendor: data };
-      } catch (error) {
-        throw new Error(`Failed to create vendor: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }),
 });

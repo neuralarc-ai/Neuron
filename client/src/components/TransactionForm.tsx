@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Plus, Trash2, Calendar as CalendarIcon } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -40,36 +39,9 @@ export function TransactionForm() {
     { accountId: 0, description: "", debit: 0, credit: 0, debitInput: "", creditInput: "" },
   ]);
 
-  const [showAddVendor, setShowAddVendor] = useState(false);
-  const [newVendorName, setNewVendorName] = useState("");
-  const [newVendorEmail, setNewVendorEmail] = useState("");
-  const [newVendorPhone, setNewVendorPhone] = useState("");
-
-  const utils = trpc.useUtils();
   const { data: accounts, isLoading: accountsLoading, error: accountsError } = trpc.accounting.getAccounts.useQuery();
   const { data: categories, isLoading: categoriesLoading, error: categoriesError } = trpc.accounting.getCategories.useQuery();
   const { data: vendors, isLoading: vendorsLoading, error: vendorsError } = trpc.accounting.getVendors.useQuery();
-
-  const createVendor = trpc.accounting.createVendor.useMutation({
-    onSuccess: (data) => {
-      toast.success("Vendor created successfully");
-      setShowAddVendor(false);
-      setNewVendorName("");
-      setNewVendorEmail("");
-      setNewVendorPhone("");
-      utils.accounting.getVendors.invalidate();
-      if (data.vendor) {
-        // Optionally auto-select the new vendor for the current entry
-        if (entries.length > 0) {
-          const lastEntryIndex = entries.length - 1;
-          updateEntry(lastEntryIndex, "vendorId", data.vendor.id);
-        }
-      }
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to create vendor");
-    },
-  });
 
   // Log errors and data for debugging
   useEffect(() => {
@@ -95,6 +67,8 @@ export function TransactionForm() {
     }
   }, [accounts, categories, vendors, accountsError, categoriesError, vendorsError]);
 
+  const utils = trpc.useUtils();
+  
   const createTransaction = trpc.accounting.createTransaction.useMutation({
     onSuccess: () => {
       toast.success("Transaction created successfully");
@@ -420,41 +394,30 @@ export function TransactionForm() {
                   </div>
                   <div className="space-y-2">
                     <Label>Vendor</Label>
-                    <div className="flex gap-2">
-                      <Select
-                        value={entry.vendorId && entry.vendorId > 0 ? entry.vendorId.toString() : undefined}
-                        onValueChange={(value) =>
-                          updateEntry(index, "vendorId", value ? parseInt(value) : undefined)
-                        }
-                        disabled={vendorsLoading}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder={vendorsLoading ? "Loading..." : "Select vendor (optional)"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {vendorsLoading ? (
-                            <SelectItem value="loading" disabled>Loading vendors...</SelectItem>
-                          ) : vendors && vendors.length > 0 ? (
-                            vendors.map((vendor) => (
-                              <SelectItem key={vendor.id} value={vendor.id.toString()}>
-                                {vendor.name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no-vendors" disabled>No vendors available</SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setShowAddVendor(true)}
-                        title="Add new vendor"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <Select
+                      value={entry.vendorId && entry.vendorId > 0 ? entry.vendorId.toString() : undefined}
+                      onValueChange={(value) =>
+                        updateEntry(index, "vendorId", value ? parseInt(value) : undefined)
+                      }
+                      disabled={vendorsLoading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={vendorsLoading ? "Loading..." : "Select vendor (optional)"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {vendorsLoading ? (
+                          <SelectItem value="loading" disabled>Loading vendors...</SelectItem>
+                        ) : vendors && vendors.length > 0 ? (
+                          vendors.map((vendor) => (
+                            <SelectItem key={vendor.id} value={vendor.id.toString()}>
+                              {vendor.name}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no-vendors" disabled>No vendors available</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
@@ -599,77 +562,6 @@ export function TransactionForm() {
             {createTransaction.isPending ? "Creating..." : "Create Transaction"}
           </Button>
         </form>
-
-        {/* Add Vendor Dialog */}
-        <Dialog open={showAddVendor} onOpenChange={setShowAddVendor}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Vendor</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="vendorName">Vendor Name *</Label>
-                <Input
-                  id="vendorName"
-                  value={newVendorName}
-                  onChange={(e) => setNewVendorName(e.target.value)}
-                  placeholder="Enter vendor name"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="vendorEmail">Email</Label>
-                <Input
-                  id="vendorEmail"
-                  type="email"
-                  value={newVendorEmail}
-                  onChange={(e) => setNewVendorEmail(e.target.value)}
-                  placeholder="vendor@example.com"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="vendorPhone">Phone</Label>
-                <Input
-                  id="vendorPhone"
-                  value={newVendorPhone}
-                  onChange={(e) => setNewVendorPhone(e.target.value)}
-                  placeholder="+91 1234567890"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowAddVendor(false);
-                    setNewVendorName("");
-                    setNewVendorEmail("");
-                    setNewVendorPhone("");
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    if (!newVendorName.trim()) {
-                      toast.error("Vendor name is required");
-                      return;
-                    }
-                    createVendor.mutate({
-                      name: newVendorName.trim(),
-                      email: newVendorEmail.trim() || undefined,
-                      phone: newVendorPhone.trim() || undefined,
-                    });
-                  }}
-                  disabled={createVendor.isPending || !newVendorName.trim()}
-                >
-                  {createVendor.isPending ? "Creating..." : "Create Vendor"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
       </CardContent>
     </Card>
   );

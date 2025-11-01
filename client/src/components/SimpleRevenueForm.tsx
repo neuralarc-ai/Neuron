@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,82 +11,48 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowUpCircle, ArrowDownCircle, Calendar as CalendarIcon, Plus } from "lucide-react";
+import { ArrowUpCircle, ArrowDownCircle, Calendar as CalendarIcon, Plus, Trash2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import { formatDate } from "@/lib/utils";
 
 type TransactionType = "revenue" | "expense";
 
-interface SimpleTransaction {
-  type: TransactionType;
+interface TableRowData {
+  id: string;
   date: string;
+  selectedDate: Date | undefined;
   description: string;
   reference: string;
   amount: string;
   accountId: number;
   categoryId?: number;
   vendorId?: number;
-  notes?: string;
 }
 
 export function SimpleRevenueForm() {
   const [transactionType, setTransactionType] = useState<TransactionType>("revenue");
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-  const [description, setDescription] = useState("");
-  const [reference, setReference] = useState("");
-  const [amount, setAmount] = useState("");
-  const [accountId, setAccountId] = useState<number>(0);
-  const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
-  const [vendorId, setVendorId] = useState<number | undefined>(undefined);
-  const [notes, setNotes] = useState("");
-  const [showAddVendor, setShowAddVendor] = useState(false);
-  const [newVendorName, setNewVendorName] = useState("");
-  const [newVendorEmail, setNewVendorEmail] = useState("");
-  const [newVendorPhone, setNewVendorPhone] = useState("");
-
-  const utils = trpc.useUtils();
-  const { data: accounts, isLoading: accountsLoading, error: accountsError } = trpc.accounting.getAccounts.useQuery();
-  const { data: categories, isLoading: categoriesLoading, error: categoriesError } = trpc.accounting.getCategories.useQuery();
-  const { data: vendors, isLoading: vendorsLoading, error: vendorsError } = trpc.accounting.getVendors.useQuery();
-
-  // Show error messages if queries fail
-  useEffect(() => {
-    if (accountsError) {
-      toast.error(`Failed to load accounts: ${accountsError.message}`);
-      console.error("[SimpleRevenueForm] Accounts error:", accountsError);
-    }
-    if (categoriesError) {
-      toast.error(`Failed to load categories: ${categoriesError.message}`);
-      console.error("[SimpleRevenueForm] Categories error:", categoriesError);
-    }
-    if (vendorsError) {
-      toast.error(`Failed to load vendors: ${vendorsError.message}`);
-      console.error("[SimpleRevenueForm] Vendors error:", vendorsError);
-    }
-  }, [accountsError, categoriesError, vendorsError]);
-
-  const createVendor = trpc.accounting.createVendor.useMutation({
-    onSuccess: (data) => {
-      toast.success("Vendor created successfully");
-      setShowAddVendor(false);
-      setNewVendorName("");
-      setNewVendorEmail("");
-      setNewVendorPhone("");
-      utils.accounting.getVendors.invalidate();
-      if (data.vendor) {
-        setVendorId(data.vendor.id);
-      }
+  const [rows, setRows] = useState<TableRowData[]>([
+    {
+      id: `row-${Date.now()}`,
+      date: new Date().toISOString().split("T")[0],
+      selectedDate: new Date(),
+      description: "",
+      reference: "",
+      amount: "",
+      accountId: 0,
+      categoryId: undefined,
+      vendorId: undefined,
     },
-    onError: (error) => {
-      toast.error(error.message || "Failed to create vendor");
-    },
-  });
+  ]);
+
+  const { data: accounts, isLoading: accountsLoading } = trpc.accounting.getAccounts.useQuery();
+  const { data: categories, isLoading: categoriesLoading } = trpc.accounting.getCategories.useQuery();
+  const { data: vendors, isLoading: vendorsLoading } = trpc.accounting.getVendors.useQuery();
 
   // Get accounts filtered by type based on transaction type
   const relevantAccounts = accounts?.filter((account) => {
@@ -99,42 +65,54 @@ export function SimpleRevenueForm() {
     }
   });
 
+  const utils = trpc.useUtils();
+
   const createTransaction = trpc.accounting.createTransaction.useMutation({
     onSuccess: () => {
       toast.success(`${transactionType === "revenue" ? "Revenue" : "Expense"} recorded successfully!`);
       // Invalidate and refetch transactions and summary
       utils.accounting.getTransactions.invalidate();
       utils.accounting.getSummary.invalidate();
-      // Reset form
-      const today = new Date();
-      setSelectedDate(today);
-      setDate(today.toISOString().split("T")[0]);
-      setDescription("");
-      setReference("");
-      setAmount("");
-      setAccountId(0);
-      setCategoryId(undefined);
-      setVendorId(undefined);
-      setNotes("");
     },
     onError: (error) => {
       toast.error(error.message || "Failed to create transaction");
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const addRow = () => {
+    const today = new Date();
+    setRows([
+      ...rows,
+      {
+        id: `row-${Date.now()}-${Math.random()}`,
+        date: today.toISOString().split("T")[0],
+        selectedDate: today,
+        description: "",
+        reference: "",
+        amount: "",
+        accountId: 0,
+        categoryId: undefined,
+        vendorId: undefined,
+      },
+    ]);
+  };
+
+  const removeRow = (id: string) => {
+    if (rows.length > 1) {
+      setRows(rows.filter((row) => row.id !== id));
+    } else {
+      toast.error("At least one row is required");
+    }
+  };
+
+  const updateRow = (id: string, field: keyof TableRowData, value: any) => {
+    setRows(
+      rows.map((row) => (row.id === id ? { ...row, [field]: value } : row))
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!accountId || accountId === 0) {
-      toast.error(`Please select a ${transactionType === "revenue" ? "revenue" : "expense"} account`);
-      return;
-    }
-
-    const amountValue = parseFloat(amount);
-    if (isNaN(amountValue) || amountValue <= 0) {
-      toast.error("Please enter a valid amount");
-      return;
-    }
 
     // Find a cash/bank account for the balancing entry
     const cashAccount = accounts?.find(
@@ -146,398 +124,324 @@ export function SimpleRevenueForm() {
       return;
     }
 
-    // Create double-entry transactions automatically
-    const entries = [];
+    // Validate all rows
+    const validRows = rows.filter((row) => {
+      if (!row.accountId || row.accountId === 0) {
+        return false;
+      }
+      const amountValue = parseFloat(row.amount);
+      return !isNaN(amountValue) && amountValue > 0;
+    });
 
-    if (transactionType === "revenue") {
-      // Revenue: Debit cash, Credit revenue account
-      entries.push({
-        accountId: cashAccount.id,
-        categoryId: categoryId,
-        vendorId: vendorId,
-        description: notes || description,
-        debit: amountValue,
-        credit: 0,
-      });
-      entries.push({
-        accountId: accountId,
-        categoryId: categoryId,
-        vendorId: vendorId,
-        description: notes || description,
-        debit: 0,
-        credit: amountValue,
-      });
-    } else {
-      // Expense: Debit expense account, Credit cash
-      entries.push({
-        accountId: accountId,
-        categoryId: categoryId,
-        vendorId: vendorId,
-        description: notes || description,
-        debit: amountValue,
-        credit: 0,
-      });
-      entries.push({
-        accountId: cashAccount.id,
-        categoryId: categoryId,
-        vendorId: vendorId,
-        description: notes || description,
-        debit: 0,
-        credit: amountValue,
-      });
+    if (validRows.length === 0) {
+      toast.error("Please fill in at least one complete row");
+      return;
     }
 
-    createTransaction.mutate({
-      date,
-      description: description || (transactionType === "revenue" ? "Revenue Entry" : "Expense Entry"),
-      reference,
-      status: "posted",
-      entries,
+    if (validRows.length !== rows.length) {
+      toast.error("Some rows are incomplete. Please fill all required fields.");
+      return;
+    }
+
+    // Create transactions for each valid row
+    const transactionPromises = validRows.map((row) => {
+      const amountValue = parseFloat(row.amount);
+      const entries = [];
+
+      if (transactionType === "revenue") {
+        // Revenue: Debit cash, Credit revenue account
+        // Category should only be on the revenue account entry (credit side), not the cash entry
+        entries.push({
+          accountId: cashAccount.id,
+          categoryId: undefined, // No category for cash/bank account entries
+          vendorId: row.vendorId,
+          description: row.description || "Revenue Entry",
+          debit: amountValue,
+          credit: 0,
+        });
+        entries.push({
+          accountId: row.accountId,
+          categoryId: row.categoryId, // Category assigned to revenue account entry
+          vendorId: row.vendorId,
+          description: row.description || "Revenue Entry",
+          debit: 0,
+          credit: amountValue,
+        });
+      } else {
+        // Expense: Debit expense account, Credit cash
+        // Category should only be on the expense account entry (debit side), not the cash entry
+        entries.push({
+          accountId: row.accountId,
+          categoryId: row.categoryId, // Category assigned to expense account entry
+          vendorId: row.vendorId,
+          description: row.description || "Expense Entry",
+          debit: amountValue,
+          credit: 0,
+        });
+        entries.push({
+          accountId: cashAccount.id,
+          categoryId: undefined, // No category for cash/bank account entries
+          vendorId: row.vendorId,
+          description: row.description || "Expense Entry",
+          debit: 0,
+          credit: amountValue,
+        });
+      }
+
+      return createTransaction.mutateAsync({
+        date: row.date,
+        description: row.description || (transactionType === "revenue" ? "Revenue Entry" : "Expense Entry"),
+        reference: row.reference,
+        status: "posted",
+        entries,
+      });
     });
+
+    try {
+      await Promise.all(transactionPromises);
+      toast.success(`${validRows.length} ${transactionType === "revenue" ? "revenue" : "expense"} transaction(s) created successfully!`);
+      // Reset to one empty row
+      const today = new Date();
+      setRows([
+        {
+          id: `row-${Date.now()}`,
+          date: today.toISOString().split("T")[0],
+          selectedDate: today,
+          description: "",
+          reference: "",
+          amount: "",
+          accountId: 0,
+          categoryId: undefined,
+          vendorId: undefined,
+        },
+      ]);
+    } catch (error) {
+      // Error already handled in mutation
+    }
   };
-
-  // Show loading state only if we don't have any data and are still loading
-  const isLoadingData = accountsLoading && !accounts;
-  const hasErrors = accountsError || categoriesError || vendorsError;
-
-  if (isLoadingData && !hasErrors) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-12">
-          <div className="text-center space-y-2">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p className="text-sm text-muted-foreground">Loading accounts and categories...</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>
-          {transactionType === "revenue" ? "Record Revenue" : "Record Expense"}
-        </CardTitle>
-        <CardDescription>
-          {transactionType === "revenue"
-            ? "Record money coming in (sales, income, etc.)"
-            : "Record money going out (costs, bills, etc.)"}
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>
+              {transactionType === "revenue" ? "Record Revenue" : "Record Expense"}
+            </CardTitle>
+            <CardDescription>
+              {transactionType === "revenue"
+                ? "Record money coming in (sales, income, etc.)"
+                : "Record money going out (costs, bills, etc.)"}
+            </CardDescription>
+          </div>
+          <Tabs value={transactionType} onValueChange={(v) => setTransactionType(v as TransactionType)}>
+            <TabsList>
+              <TabsTrigger value="revenue">
+                <ArrowUpCircle className="h-4 w-4 mr-2" />
+                Revenue
+              </TabsTrigger>
+              <TabsTrigger value="expense">
+                <ArrowDownCircle className="h-4 w-4 mr-2" />
+                Expense
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </CardHeader>
       <CardContent>
-        <Tabs value={transactionType} onValueChange={(v) => setTransactionType(v as TransactionType)}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="revenue">
-              <ArrowUpCircle className="h-4 w-4 mr-2" />
-              Revenue (Money In)
-            </TabsTrigger>
-            <TabsTrigger value="expense">
-              <ArrowDownCircle className="h-4 w-4 mr-2" />
-              Expense (Money Out)
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        <form onSubmit={handleSubmit} className="space-y-4 mt-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Date *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    type="button"
-                    className={`w-full justify-start text-left font-normal ${!selectedDate && "text-muted-foreground"}`}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate ? formatDate(selectedDate) : <span>Pick a date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(date) => {
-                      setSelectedDate(date);
-                      if (date) {
-                        setDate(format(date, "yyyy-MM-dd"));
-                      }
-                    }}
-                    captionLayout="dropdown"
-                    fromYear={2020}
-                    toYear={new Date().getFullYear() + 1}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="amount">Amount (₹) *</Label>
-              <Input
-                id="amount"
-                type="text"
-                inputMode="decimal"
-                value={amount}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/[^0-9.]/g, "");
-                  if (value === "" || !isNaN(parseFloat(value))) {
-                    setAmount(value);
-                  }
-                }}
-                placeholder="0.00"
-                required
-              />
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex justify-between items-center">
+            <Label>Quick Entry Table</Label>
+            <Button type="button" variant="outline" size="sm" onClick={addRow}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Row
+            </Button>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">
-              {transactionType === "revenue" ? "Source (e.g., Product Sale, Service Fee)" : "Item (e.g., Office Supplies, Utilities)"}
-            </Label>
-            <Input
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={transactionType === "revenue" ? "What is this revenue from?" : "What is this expense for?"}
-            />
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[120px]">Date *</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="w-[200px]">
+                    {transactionType === "revenue" ? "Revenue Account *" : "Expense Account *"}
+                  </TableHead>
+                  <TableHead className="w-[150px]">Category</TableHead>
+                  <TableHead className="w-[150px]">Vendor</TableHead>
+                  <TableHead className="w-[150px]">Reference</TableHead>
+                  <TableHead className="w-[120px]">Amount (₹) *</TableHead>
+                  <TableHead className="w-[60px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            type="button"
+                            size="sm"
+                            className={`w-full justify-start text-left font-normal text-xs h-9 ${!row.selectedDate && "text-muted-foreground"}`}
+                          >
+                            <CalendarIcon className="mr-1 h-3 w-3" />
+                            {row.selectedDate ? formatDate(row.selectedDate) : "Pick date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={row.selectedDate}
+                            onSelect={(date) => {
+                              updateRow(row.id, "selectedDate", date);
+                              if (date) {
+                                updateRow(row.id, "date", format(date, "yyyy-MM-dd"));
+                              }
+                            }}
+                            captionLayout="dropdown"
+                            fromYear={2020}
+                            toYear={new Date().getFullYear() + 1}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="text"
+                        value={row.description}
+                        onChange={(e) => updateRow(row.id, "description", e.target.value)}
+                        placeholder={transactionType === "revenue" ? "Product Sale..." : "Office Supplies..."}
+                        className="h-9 text-xs"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={row.accountId > 0 ? row.accountId.toString() : undefined}
+                        onValueChange={(value) => updateRow(row.id, "accountId", parseInt(value))}
+                        disabled={accountsLoading}
+                      >
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue placeholder="Select account" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {relevantAccounts && relevantAccounts.length > 0 ? (
+                            relevantAccounts
+                              .filter((acc) => acc.type === (transactionType === "revenue" ? "revenue" : "expense"))
+                              .map((account) => (
+                                <SelectItem key={account.id} value={account.id.toString()}>
+                                  {account.code} - {account.name}
+                                </SelectItem>
+                              ))
+                          ) : (
+                            <SelectItem value="none" disabled>No accounts</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={row.categoryId ? row.categoryId.toString() : undefined}
+                        onValueChange={(value) => updateRow(row.id, "categoryId", value ? parseInt(value) : undefined)}
+                        disabled={categoriesLoading}
+                      >
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue placeholder="Optional" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories && categories.length > 0 ? (
+                            categories.map((category) => (
+                              <SelectItem key={category.id} value={category.id.toString()}>
+                                {category.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="none" disabled>No categories</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={row.vendorId ? row.vendorId.toString() : undefined}
+                        onValueChange={(value) => updateRow(row.id, "vendorId", value ? parseInt(value) : undefined)}
+                        disabled={vendorsLoading}
+                      >
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue placeholder="Optional" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {vendors && vendors.length > 0 ? (
+                            vendors.map((vendor) => (
+                              <SelectItem key={vendor.id} value={vendor.id.toString()}>
+                                {vendor.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="none" disabled>No vendors</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="text"
+                        value={row.reference}
+                        onChange={(e) => updateRow(row.id, "reference", e.target.value)}
+                        placeholder="Invoice #..."
+                        className="h-9 text-xs"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={row.amount}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^0-9.]/g, "");
+                          if (value === "" || !isNaN(parseFloat(value))) {
+                            updateRow(row.id, "amount", value);
+                          }
+                        }}
+                        placeholder="0.00"
+                        className="h-9 text-xs"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {rows.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeRow(row.id)}
+                          className="h-8 w-8"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="account">
-                {transactionType === "revenue" ? "Revenue Account *" : "Expense Account *"}
-              </Label>
-              <Select
-                value={accountId > 0 ? accountId.toString() : undefined}
-                onValueChange={(value) => setAccountId(parseInt(value))}
-                disabled={accountsLoading}
-                required
-              >
-                <SelectTrigger id="account">
-                  <SelectValue placeholder={
-                    accountsLoading 
-                      ? "Loading..." 
-                      : accountsError 
-                        ? "Error loading accounts" 
-                        : `Select ${transactionType === "revenue" ? "revenue" : "expense"} account`
-                  } />
-                </SelectTrigger>
-                <SelectContent>
-                  {accountsLoading ? (
-                    <SelectItem value="loading" disabled>Loading accounts...</SelectItem>
-                  ) : accountsError ? (
-                    <SelectItem value="error" disabled>Error: {accountsError.message}</SelectItem>
-                  ) : relevantAccounts && relevantAccounts.length > 0 ? (
-                    relevantAccounts
-                      .filter((acc) => acc.type === (transactionType === "revenue" ? "revenue" : "expense"))
-                      .map((account) => (
-                        <SelectItem key={account.id} value={account.id.toString()}>
-                          {account.code} - {account.name}
-                        </SelectItem>
-                      ))
-                  ) : (
-                    <SelectItem value="none" disabled>No accounts available</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
-              <Select
-                value={categoryId ? categoryId.toString() : undefined}
-                onValueChange={(value) => setCategoryId(value ? parseInt(value) : undefined)}
-                disabled={categoriesLoading}
-              >
-                <SelectTrigger id="category">
-                  <SelectValue placeholder={
-                    categoriesLoading 
-                      ? "Loading..." 
-                      : categoriesError 
-                        ? "Error loading categories" 
-                        : "Select category (optional)"
-                  } />
-                </SelectTrigger>
-                <SelectContent>
-                  {categoriesLoading ? (
-                    <SelectItem value="loading" disabled>Loading categories...</SelectItem>
-                  ) : categoriesError ? (
-                    <SelectItem value="error" disabled>Error: {categoriesError.message}</SelectItem>
-                  ) : categories && categories.length > 0 ? (
-                    categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id.toString()}>
-                        {category.name}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="none" disabled>No categories available</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="reference">Reference Number</Label>
-              <Input
-                id="reference"
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-                placeholder="Invoice #, Receipt #, etc."
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="vendor">{transactionType === "revenue" ? "Customer/Vendor" : "Vendor"}</Label>
-              <div className="flex gap-2">
-                <Select
-                  value={vendorId ? vendorId.toString() : undefined}
-                  onValueChange={(value) => setVendorId(value ? parseInt(value) : undefined)}
-                  disabled={vendorsLoading}
-                >
-                <SelectTrigger id="vendor" className="flex-1">
-                  <SelectValue placeholder={
-                    vendorsLoading 
-                      ? "Loading..." 
-                      : vendorsError 
-                        ? "Error loading vendors" 
-                        : "Select (optional)"
-                  } />
-                </SelectTrigger>
-                <SelectContent>
-                  {vendorsLoading ? (
-                    <SelectItem value="loading" disabled>Loading vendors...</SelectItem>
-                  ) : vendorsError ? (
-                    <SelectItem value="error" disabled>Error: {vendorsError.message}</SelectItem>
-                  ) : vendors && vendors.length > 0 ? (
-                    vendors.map((vendor) => (
-                      <SelectItem key={vendor.id} value={vendor.id.toString()}>
-                        {vendor.name}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="none" disabled>No vendors available</SelectItem>
-                  )}
-                </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAddVendor(true)}
-                  className="whitespace-nowrap"
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
-            <Input
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Additional details..."
-            />
-          </div>
-
-          <div className="border-t pt-4">
-            <div className="flex justify-between items-center mb-4">
-              <span className="font-medium">Amount:</span>
-              <span className="font-semibold text-lg">
-                {amount ? `₹${parseFloat(amount).toFixed(2)}` : "₹0.00"}
-              </span>
-            </div>
+          <div className="flex justify-between items-center pt-4 border-t">
             <p className="text-xs text-muted-foreground">
               {transactionType === "revenue"
-                ? "This will automatically debit your cash/bank account and credit the revenue account."
-                : "This will automatically debit the expense account and credit your cash/bank account."}
+                ? "Each row will automatically debit cash/bank and credit the revenue account."
+                : "Each row will automatically debit the expense account and credit cash/bank."}
             </p>
+            <Button type="submit" disabled={createTransaction.isPending || rows.length === 0} className="min-w-[150px]">
+              {createTransaction.isPending
+                ? "Recording..."
+                : transactionType === "revenue"
+                ? `Record ${rows.length} Revenue`
+                : `Record ${rows.length} Expense`}
+            </Button>
           </div>
-
-          <Button type="submit" disabled={createTransaction.isPending || !accountId || !amount} className="w-full">
-            {createTransaction.isPending
-              ? "Recording..."
-              : transactionType === "revenue"
-              ? "Record Revenue"
-              : "Record Expense"}
-          </Button>
         </form>
-
-        {/* Add Vendor Dialog */}
-        <Dialog open={showAddVendor} onOpenChange={setShowAddVendor}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Vendor</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="vendorName">Vendor Name *</Label>
-                <Input
-                  id="vendorName"
-                  value={newVendorName}
-                  onChange={(e) => setNewVendorName(e.target.value)}
-                  placeholder="Enter vendor name"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="vendorEmail">Email</Label>
-                <Input
-                  id="vendorEmail"
-                  type="email"
-                  value={newVendorEmail}
-                  onChange={(e) => setNewVendorEmail(e.target.value)}
-                  placeholder="vendor@example.com"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="vendorPhone">Phone</Label>
-                <Input
-                  id="vendorPhone"
-                  value={newVendorPhone}
-                  onChange={(e) => setNewVendorPhone(e.target.value)}
-                  placeholder="+91 1234567890"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowAddVendor(false);
-                    setNewVendorName("");
-                    setNewVendorEmail("");
-                    setNewVendorPhone("");
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    if (!newVendorName.trim()) {
-                      toast.error("Vendor name is required");
-                      return;
-                    }
-                    createVendor.mutate({
-                      name: newVendorName.trim(),
-                      email: newVendorEmail.trim() || undefined,
-                      phone: newVendorPhone.trim() || undefined,
-                    });
-                  }}
-                  disabled={createVendor.isPending || !newVendorName.trim()}
-                >
-                  {createVendor.isPending ? "Creating..." : "Create Vendor"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
       </CardContent>
     </Card>
   );
