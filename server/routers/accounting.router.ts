@@ -472,9 +472,10 @@ export const accountingRouter = router({
     try {
       const supabase = getSupabaseClient();
 
+      // Select only necessary columns for better performance
       const { data: vendors, error } = await supabase
         .from("accounting_vendors")
-        .select("*")
+        .select("id, name, email, phone, is_active")
         .eq("is_active", true)
         .order("name");
 
@@ -483,6 +484,7 @@ export const accountingRouter = router({
         console.error("[Accounting] Error code:", error.code);
         console.error("[Accounting] Error details:", error.details);
         console.error("[Accounting] Error hint:", error.hint);
+        // Return empty array instead of throwing to prevent blocking the UI
         return [];
       }
 
@@ -494,6 +496,7 @@ export const accountingRouter = router({
         console.error("[Accounting] Error message:", error.message);
         console.error("[Accounting] Error stack:", error.stack);
       }
+      // Return empty array instead of throwing to prevent blocking the UI
       return [];
     }
   }),

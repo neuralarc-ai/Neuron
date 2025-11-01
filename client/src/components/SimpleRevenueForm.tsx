@@ -52,7 +52,19 @@ export function SimpleRevenueForm() {
 
   const { data: accounts, isLoading: accountsLoading } = trpc.accounting.getAccounts.useQuery();
   const { data: categories, isLoading: categoriesLoading } = trpc.accounting.getCategories.useQuery();
-  const { data: vendors, isLoading: vendorsLoading } = trpc.accounting.getVendors.useQuery();
+  // Make vendors query optional with error handling - don't block form if it fails
+  const { data: vendors, isLoading: vendorsLoading, error: vendorsError } = trpc.accounting.getVendors.useQuery(
+    undefined,
+    {
+      retry: 1, // Only retry once
+      retryDelay: 1000,
+      staleTime: 30000, // Cache for 30 seconds
+      onError: (error) => {
+        console.error("[SimpleRevenueForm] Vendors query failed (non-blocking):", error);
+        // Don't show toast - vendors are optional
+      },
+    }
+  );
 
   // Get accounts filtered by type based on transaction type
   const relevantAccounts = accounts?.filter((account) => {

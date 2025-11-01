@@ -41,7 +41,19 @@ export function TransactionForm() {
 
   const { data: accounts, isLoading: accountsLoading, error: accountsError } = trpc.accounting.getAccounts.useQuery();
   const { data: categories, isLoading: categoriesLoading, error: categoriesError } = trpc.accounting.getCategories.useQuery();
-  const { data: vendors, isLoading: vendorsLoading, error: vendorsError } = trpc.accounting.getVendors.useQuery();
+  // Make vendors query optional with error handling - don't block form if it fails
+  const { data: vendors, isLoading: vendorsLoading, error: vendorsError } = trpc.accounting.getVendors.useQuery(
+    undefined,
+    {
+      retry: 1, // Only retry once
+      retryDelay: 1000,
+      staleTime: 30000, // Cache for 30 seconds
+      onError: (error) => {
+        console.error("[TransactionForm] Vendors query failed (non-blocking):", error);
+        // Don't show toast - vendors are optional
+      },
+    }
+  );
 
   // Log errors and data for debugging
   useEffect(() => {
