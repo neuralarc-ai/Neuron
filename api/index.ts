@@ -4,21 +4,29 @@ import { createContext } from "../server/_core/context";
 
 // Helper to safely get pathname from request URL
 function getPathname(request: Request): string {
+  const urlString = request.url;
+  
+  // If it's already a relative path (starts with /), extract pathname directly
+  if (urlString.startsWith('/')) {
+    const pathEnd = urlString.indexOf('?');
+    return pathEnd > -1 ? urlString.substring(0, pathEnd) : urlString;
+  }
+  
+  // If it's a full URL, try to parse it
   try {
-    // Try parsing as full URL first
-    const url = new URL(request.url);
+    const url = new URL(urlString);
     return url.pathname;
   } catch {
-    // If that fails, try using the URL directly or construct from headers
+    // If that fails, try constructing from headers
     try {
-      // In Vercel, request.url should be a full URL, but if it's not, use headers
-      const host = request.headers.get('host') || 'localhost';
+      const host = request.headers.get('host') || 
+                   request.headers.get('x-vercel-host') || 
+                   'localhost';
       const protocol = request.headers.get('x-forwarded-proto') || 'https';
-      const url = new URL(request.url, `${protocol}://${host}`);
+      const url = new URL(urlString, `${protocol}://${host}`);
       return url.pathname;
     } catch {
       // Last resort: extract pathname manually
-      const urlString = request.url;
       if (urlString.startsWith('/')) {
         const pathEnd = urlString.indexOf('?');
         return pathEnd > -1 ? urlString.substring(0, pathEnd) : urlString;
@@ -47,22 +55,48 @@ export default async function handler(request: Request) {
   // Handle tRPC requests
   if (pathname.startsWith('/api/trpc')) {
     try {
-      // Ensure request.url is a valid URL for fetchRequestHandler
+      // Ensure request.url is a valid absolute URL for fetchRequestHandler
+      // In Vercel, request.url is often a relative path, so we need to construct the full URL
       let validRequest = request;
-      try {
-        // Try to validate the URL - if it fails, we'll reconstruct it
-        new URL(request.url);
-      } catch {
-        // If URL is invalid, reconstruct it using headers
-        const host = request.headers.get('host') || request.headers.get('x-vercel-host') || 'localhost';
+      const urlString = request.url;
+      
+      // Check if URL is relative (starts with /)
+      if (urlString.startsWith('/') || !urlString.includes('://')) {
+        // Reconstruct as absolute URL using Vercel headers
+        const host = request.headers.get('host') || 
+                     request.headers.get('x-vercel-host') || 
+                     request.headers.get('x-forwarded-host') ||
+                     'localhost';
         const protocol = request.headers.get('x-forwarded-proto') || 'https';
-        const url = `${protocol}://${host}${pathname}${request.url.includes('?') ? request.url.substring(request.url.indexOf('?')) : ''}`;
-        // Create a new Request with the valid URL
-        validRequest = new Request(url, {
+        
+        // Preserve query string if present
+        const queryString = urlString.includes('?') ? urlString.substring(urlString.indexOf('?')) : '';
+        const fullUrl = `${protocol}://${host}${pathname}${queryString}`;
+        
+        console.log('[API] Reconstructed URL:', fullUrl.substring(0, 100));
+        
+        // Create a new Request with the valid absolute URL
+        validRequest = new Request(fullUrl, {
           method: request.method,
           headers: request.headers,
           body: request.body,
         });
+      } else {
+        // URL is already absolute, validate it
+        try {
+          new URL(urlString);
+        } catch {
+          // If validation fails, reconstruct it
+          const host = request.headers.get('host') || 'localhost';
+          const protocol = request.headers.get('x-forwarded-proto') || 'https';
+          const queryString = urlString.includes('?') ? urlString.substring(urlString.indexOf('?')) : '';
+          const fullUrl = `${protocol}://${host}${pathname}${queryString}`;
+          validRequest = new Request(fullUrl, {
+            method: request.method,
+            headers: request.headers,
+            body: request.body,
+          });
+        }
       }
 
       return await fetchRequestHandler({
